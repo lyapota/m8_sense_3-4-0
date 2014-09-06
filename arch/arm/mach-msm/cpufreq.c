@@ -36,8 +36,8 @@
 
 #ifdef CONFIG_HTC_DEBUG_FOOTPRINT
 #include <mach/htc_footprint.h>
-#include <mach/clk-provider.h>
 #endif
+#include <mach/clk-provider.h>
 
 #include "acpuclock.h"
 
@@ -378,20 +378,30 @@ static int __cpuinit msm_cpufreq_cpu_callback(struct notifier_block *nfb,
 		}
 		break;
 	case CPU_UP_PREPARE:
+#ifdef CONFIG_HTC_DEBUG_FOOTPRINT	  
 		set_hotplug_on_footprint(cpu, HOF_ENTER);
+#endif
 		if (is_clk) {
+#ifdef CONFIG_HTC_DEBUG_FOOTPRINT
 			set_hotplug_on_footprint(cpu, HOF_BEFORE_PREPARE_ENABLE_L2);
+#endif
 			rc = clk_prepare_enable(l2_clk);
 			if (rc < 0)
 				return NOTIFY_BAD;
+#ifdef CONFIG_HTC_DEBUG_FOOTPRINT
 			set_hotplug_on_footprint(cpu, HOF_BEFORE_PREPARE_ENABLE_CPU);
+#endif			
 			rc = clk_prepare_enable(cpu_clk[cpu]);
 			if (rc < 0)
 				return NOTIFY_BAD;
+#ifdef CONFIG_HTC_DEBUG_FOOTPRINT
 			set_hotplug_on_footprint(cpu, HOF_BEFORE_UPDATE_L2_BW);
+#endif			
 			update_l2_bw(&cpu);
 		}
+#ifdef CONFIG_HTC_DEBUG_FOOTPRINT
 		set_hotplug_on_footprint(cpu, HOF_LEAVE);
+#endif		
 		break;
 	default:
 		break;

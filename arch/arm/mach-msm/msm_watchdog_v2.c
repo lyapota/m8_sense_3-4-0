@@ -193,7 +193,7 @@ static int msm_watchdog_suspend(struct device *dev)
 	if (!enable)
 		return 0;
 
-#if defined(CONFIG_HTC_DEBUG_WATCHDOG)
+#if defined(CONFIG_HTC_DEBUG_WATCHDOG) && defined(CONFIG_HTC_DEBUG_FOOTPRINT)
 	if (suspend_watchdog_deferred) {
 		set_msm_watchdog_pet_time_utc();
 		return 0;
@@ -229,7 +229,7 @@ static int msm_watchdog_resume(struct device *dev)
 	if (!enable)
 		return 0;
 
-#if defined(CONFIG_HTC_DEBUG_WATCHDOG)
+#if defined(CONFIG_HTC_DEBUG_WATCHDOG) && defined(CONFIG_HTC_DEBUG_FOOTPRINT)
 	if (suspend_watchdog_deferred) {
 		set_msm_watchdog_pet_time_utc();
 		return 0;
