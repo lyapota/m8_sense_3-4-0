@@ -24,6 +24,7 @@ enum {
 
 //lyapota
 extern unsigned int is_m8whl;
+extern unsigned int is_m8wl;
 //--
 
 int board_mfg_mode(void);
