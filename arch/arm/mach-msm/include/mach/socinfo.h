@@ -38,7 +38,6 @@
 #define of_board_is_dragonboard()	\
 	of_machine_is_compatible("qcom,dragonboard")
 #define of_board_is_m8()	of_machine_is_compatible("htc,m8")
-#define of_board_is_m8wl()	of_machine_is_compatible("htc,m8wl")
 #define of_board_is_m8whl()	of_machine_is_compatible("htc,m8whl")
 #define of_board_is_cdp()	of_machine_is_compatible("qcom,cdp")
 #define of_board_is_mtp()	of_machine_is_compatible("qcom,mtp")

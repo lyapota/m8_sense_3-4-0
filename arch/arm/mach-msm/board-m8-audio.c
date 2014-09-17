@@ -120,14 +120,13 @@ extern unsigned int system_rev;
 
 // lyapota - Sprint have two luns
 unsigned int is_m8whl = 0;
-unsigned int is_m8wl = 0;
 
 static int __init hook_m8_model_setup(char *str)
 {
 	if (!strcmp(str, "m8whl"))
 		is_m8whl = 1;
-	else if (!strcmp(str, "m8wl"))
-		is_m8wl = 1;
+	else
+		is_m8whl = 0;
 	return 0;
 }
 __setup("m8_model=", hook_m8_model_setup);
