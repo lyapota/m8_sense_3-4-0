@@ -22,10 +22,6 @@ enum {
 	BUILD_MODE_ENG,
 };
 
-//lyapota
-extern unsigned int is_m8whl;
-//--
-
 int board_mfg_mode(void);
 int board_build_flag(void);
 char *board_serialno(void);

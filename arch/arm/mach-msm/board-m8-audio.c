@@ -118,20 +118,6 @@ static atomic_t q6_effect_mode = ATOMIC_INIT(-1);
 static atomic_t dev_use_dmic = ATOMIC_INIT(0);
 extern unsigned int system_rev;
 
-// lyapota - Sprint have two luns
-unsigned int is_m8whl = 0;
-
-static int __init hook_m8_model_setup(char *str)
-{
-	if (!strcmp(str, "m8whl"))
-		is_m8whl = 1;
-	else
-		is_m8whl = 0;
-	return 0;
-}
-__setup("m8_model=", hook_m8_model_setup);
-//--
-
 static int m8_get_hw_component(void)
 {
 	return (HTC_AUDIO_RT5501 | HTC_AUDIO_TFA9887 | HTC_AUDIO_TFA9887L);
