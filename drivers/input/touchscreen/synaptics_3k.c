@@ -253,16 +253,15 @@ extern unsigned int get_tamper_sf(void);
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_SWEEP2SLEEP
 #define S2S_Y_MAX 2880
 #define S2S_X_MAX 1920
-#define S2S_Y_LIMIT S2S_Y_MAX-180
-#define S2S_X_B1 700
-#define S2S_X_B2 1200
-#define S2S_X_FINAL 400
+#define S2S_Y_DELTA 180
+#define S2S_Y_LIMIT S2S_Y_MAX-S2S_Y_DELTA
+#define S2S_X_P1 600
+#define S2S_X_P2 S2S_X_MAX-S2S_X_P1
+#define S2S_X_EPS 600
 #define S2S_PWRKEY_DUR 60
 
-static int last_touch_position_x = 0;
-static int last_touch_position_y = 0;
-static bool exec_count = true;
-static bool scr_on_touch = false, barrier[2] = {false, false};
+static int direction = 0;
+static int first_x = 0;
 static bool scr_suspended = false;
 static int s2s_switch = 1;
 
@@ -291,46 +290,45 @@ static void sweep2sleep_pwrtrigger(void) {
 
 static void reset_s2s(void)
 {
-	exec_count = true;
-	barrier[0] = false;
-	barrier[1] = false;
-	scr_on_touch = false;
+	direction = 0;
+	first_x = 0;
 }
 
 static void detect_sweep2sleep(int x, int y)
 {
-	int prevx = 0, nextx = 0;
+	int x_go = 0;
+	
+	if (!first_x)
+		first_x = x;
+	else
+		x_go = abs(first_x - x);
+	
+	if (y < S2S_Y_LIMIT) {
+		reset_s2s();
+		return;
+	} else if (x_go < S2S_X_EPS)
+		return;
 
-	if (scr_suspended == false && s2s_switch > 0) {
-		scr_on_touch=true;
-		prevx = (S2S_X_MAX - S2S_X_FINAL);
-		nextx = S2S_X_B2;
-		if ((barrier[0] == true) ||
-		   ((x < prevx) &&
-		    (x > nextx) &&
-		    (y > S2S_Y_LIMIT))) {
-			prevx = nextx;
-			nextx = S2S_X_B1;
-			barrier[0] = true;
-			if ((barrier[1] == true) ||
-			   ((x < prevx) &&
-			    (x > nextx) &&
-			    (y > S2S_Y_LIMIT))) {
-				prevx = nextx;
-				barrier[1] = true;
-				if ((x < prevx) &&
-				    (y > S2S_Y_LIMIT)) {
-					if (x < S2S_X_FINAL) {
-						if (exec_count) {
-							pr_debug("s2s: OFF\n");
-							sweep2sleep_pwrtrigger();
-							exec_count = false;
-						}
-					}
-				}
-			}
-		}
+	
+	if (!direction && first_x > S2S_X_P2)
+		direction = 1; //to left
+		
+	if (!direction && first_x < S2S_X_P1)
+		direction = 2; //to right
+		
+		
+	if (!scr_suspended && direction == 1 && (s2s_switch == 1 || s2s_switch == 3) && x < S2S_X_P1) {
+		pr_debug("s2s: OFF\n");
+		sweep2sleep_pwrtrigger();
+		reset_s2s();		
 	}
+
+	if (!scr_suspended && direction == 2 && (s2s_switch == 2 || s2s_switch == 3) && x > S2S_X_P2) {
+		pr_debug("s2s: OFF\n");
+		sweep2sleep_pwrtrigger();
+		reset_s2s();		
+	}
+
 }
 #endif
 
@@ -1797,7 +1795,7 @@ static ssize_t synaptics_sweep2sleep_show(struct device *dev,
 static ssize_t synaptics_sweep2sleep_dump(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
-	if (buf[0] >= '0' && buf[0] <= '1' && buf[1] == '\n')
+	if (buf[0] >= '0' && buf[0] <= '3' && buf[1] == '\n')
                 if (s2s_switch != buf[0] - '0')
 		        s2s_switch = buf[0] - '0';
 	return count;
@@ -2308,8 +2306,7 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 			}
 		}
 
-		if (finger_pressed == 0 
-) {
+		if (finger_pressed == 0 ) {
 			if (ts->htc_event == SYN_AND_REPORT_TYPE_A) {
 				
 				if (ts->support_htc_event) {
@@ -2453,10 +2450,6 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 								finger_data[i][1]);
 							input_mt_sync(ts->input_dev);
 						} else if (ts->htc_event == SYN_AND_REPORT_TYPE_B) {
-#ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_SWEEP2SLEEP
-							last_touch_position_x = finger_data[i][0];
-							last_touch_position_y = finger_data[i][1];
-#endif
 						
 							if (ts->support_htc_event) {
 								input_report_abs(ts->input_dev, ABS_MT_AMPLITUDE,
