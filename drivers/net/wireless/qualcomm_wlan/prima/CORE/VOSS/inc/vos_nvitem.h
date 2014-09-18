@@ -721,4 +721,12 @@ eNVChannelEnabledType vos_nv_getChannelEnabledState
 );
 
 VOS_STATUS vos_init_wiphy_from_nv_bin(void);
+
+/**------------------------------------------------------------------------
+  \brief vos_chan_to_freq -
+  \param   - input channel number to know channel frequency
+  \return Channel frequency
+  \sa
+  -------------------------------------------------------------------------*/
+v_U16_t vos_chan_to_freq(v_U8_t chanNum);
 #endif // __VOS_NVITEM_H

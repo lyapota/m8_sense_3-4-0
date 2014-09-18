@@ -215,6 +215,12 @@ static void __limInitStatsVars(tpAniSirGlobal pMac)
     // Heart-Beat interval value
     pMac->lim.gLimHeartBeatCount = 0;
 
+    vos_mem_zero(pMac->lim.gLimHeartBeatApMac[0],
+            sizeof(tSirMacAddr));
+    vos_mem_zero(pMac->lim.gLimHeartBeatApMac[1],
+            sizeof(tSirMacAddr));
+    pMac->lim.gLimHeartBeatApMacIndex = 0;
+
     // Statistics to keep track of no. beacons rcvd in heart beat interval
     vos_mem_set(pMac->lim.gLimHeartBeatBeaconStats,
                 sizeof(pMac->lim.gLimHeartBeatBeaconStats), 0);
@@ -1733,10 +1739,16 @@ limDetectChangeInApCapabilities(tpAniSirGlobal pMac,
     apNewCaps.capabilityInfo = limGetU16((tANI_U8 *) &pBeacon->capabilityInfo);
     newChannel = (tANI_U8) pBeacon->channelNumber;
 
+    limLog(pMac, LOGE, FL("newCap %d, curCap %d, "
+                          "newCh %d, curCh %d, "
+                          "limIsNullSsid %d, limCmpSSid %d"),
+           apNewCaps.capabilityInfo, psessionEntry->limCurrentBssCaps,
+           newChannel, psessionEntry->currentOperChannel,
+           limIsNullSsid(&pBeacon->ssId), limCmpSSid(pMac, &pBeacon->ssId, psessionEntry));
+
     if ( ( false == psessionEntry->limSentCapsChangeNtf ) &&
-        ( ( ( limIsNullSsid(&pBeacon->ssId) ) ||
-          ( ( !limIsNullSsid(&pBeacon->ssId) ) &&
-             ( false == limCmpSSid(pMac, &pBeacon->ssId, psessionEntry) ) ) ) ||
+          ( ( ( !limIsNullSsid(&pBeacon->ssId) ) &&
+          ( false == limCmpSSid(pMac, &pBeacon->ssId, psessionEntry) ) ) ||
           ( (SIR_MAC_GET_ESS(apNewCaps.capabilityInfo) !=
              SIR_MAC_GET_ESS(psessionEntry->limCurrentBssCaps) ) ||
           ( SIR_MAC_GET_PRIVACY(apNewCaps.capabilityInfo) !=
@@ -1755,11 +1767,11 @@ limDetectChangeInApCapabilities(tpAniSirGlobal pMac,
              * receiving probe response */
             if ( true == psessionEntry->fIgnoreCapsChange )
             {
-                limLog(pMac, LOGW, FL("Ignoring the Capability change as it is false alarm"));
+                limLog(pMac, LOGE, FL("Ignoring the Capability change as it is false alarm"));
                 return;
             }
             psessionEntry->fWaitForProbeRsp = true;
-            limLog(pMac, LOGW, FL("AP capabilities are not matching,"
+            limLog(pMac, LOGE, FL("AP capabilities are not matching,"
                    "sending directed probe request.. "));
             status = limSendProbeReqMgmtFrame(pMac, &psessionEntry->ssId, psessionEntry->bssId,
                     psessionEntry->currentOperChannel,psessionEntry->selfMacAddr,
@@ -1828,7 +1840,7 @@ limDetectChangeInApCapabilities(tpAniSirGlobal pMac,
          * will come here. If beacon is with broadcast ssid then fWaitForProbeRsp
          * will be false, the control will not come here*/
 
-        limLog(pMac, LOG1, FL("capabilities in probe response are"
+        limLog(pMac, LOGE, FL("capabilities in probe response are "
                     "matching with the current setting,"
                     "Ignoring subsequent capability"
                     "mismatch"));

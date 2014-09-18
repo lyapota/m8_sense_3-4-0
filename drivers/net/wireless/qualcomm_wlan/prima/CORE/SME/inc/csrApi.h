@@ -1126,6 +1126,7 @@ typedef struct tagCsrConfigParam
 
     tANI_U8 isAmsduSupportInAMPDU;
 
+    tANI_BOOLEAN sendDeauthBeforeCon;
 }tCsrConfigParam;
 
 //Tush

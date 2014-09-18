@@ -110,7 +110,6 @@ int wlan_hdd_ftm_start(hdd_context_t *pAdapter);
 #include "sapApi.h"
 #include <linux/semaphore.h>
 #include <mach/subsystem_restart.h>
-#include <mach/bam_dmux.h>
 #include <wlan_hdd_hostapd.h>
 #include <wlan_hdd_softap_tx_rx.h>
 #include "cfgApi.h"
@@ -206,10 +205,9 @@ static void hdd_set_multicast_list(struct net_device *dev);
 #endif
 
 void hdd_wlan_initial_scan(hdd_adapter_t *pAdapter);
-int isWDresetInProgress(void);
 
 #ifdef CONFIG_PERFLOCK
-#ifdef CONFIG_METRICO_TP
+//#ifdef CONFIG_METRICO_TP
 #include <mach/perflock.h>
 
 static int htc_wlan_perf_lock = 0;
@@ -266,7 +264,7 @@ static void wlan_hdd_cfg80211_traffic_monitor(struct work_struct *work)
     unsigned long rx_packets_count = pAdapter->stats.rx_packets;
     unsigned long tx_packets_count = pAdapter->stats.tx_packets;
     char freq[16];
-    /* for Traffic High/Low indication */
+    /*for Traffic High/Low indication */
     pAdapter->traffic_curr_count = rx_packets_count + tx_packets_count;
 
     if (pAdapter->device_mode == WLAN_HDD_SOFTAP) {
@@ -284,11 +282,6 @@ static void wlan_hdd_cfg80211_traffic_monitor(struct work_struct *work)
                     wlan_hdd_perf_lock(pAdapter, true, freq, 2);
                     printk("\n[WLAN]: lock cpu here, traffic-count=%ld\n", traffic_diff / 3);
                 }
-
-                /* Disable the poll-timer-algorithm of LTE-Rx */
-                if (pAdapter->device_mode == WLAN_HDD_SOFTAP) {
-                    bam_wifihotspot_speedmode(1);
-                }
             }
         } else {
             if (traffic_diff < TRAFFIC_LOW_WATER_MARK) {
@@ -297,11 +290,6 @@ static void wlan_hdd_cfg80211_traffic_monitor(struct work_struct *work)
                     wlan_hdd_perf_lock(pAdapter, false, freq, 0);
                     wake_unlock(&pAdapter->traffic_monitor_wlock);
                     printk("\n[WLAN]: unlock cpu here, traffic-count=%ld\n", traffic_diff / 3);
-
-                    /* Enable the poll-timer-algorithm of LTE-Rx */
-                    if (pAdapter->device_mode == WLAN_HDD_SOFTAP) {
-                        bam_wifihotspot_speedmode(0);
-                    }
                 }
             }
         }
@@ -311,7 +299,7 @@ static void wlan_hdd_cfg80211_traffic_monitor(struct work_struct *work)
     /*End of Traffic High/Low indication */
 }
 //HTC_CSP_END
-#endif /* CONFIG_METRICO_TP */
+//#endif /* CONFIG_METRICO_TP */
 #endif /* CONFIG_PERFLOCK */
 
 extern int hdd_setBand_helper(struct net_device *dev, tANI_U8* ptr);
@@ -1797,6 +1785,11 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
            /* Change band request received */
            ret = hdd_setBand_helper(dev, ptr);
        }
+       else if(strncmp(command, "SETWMMPS", 8) == 0)
+       {
+           tANI_U8 *ptr = command;
+           ret = hdd_wmmps_helper(pAdapter, ptr);
+       }
        else if ( strncasecmp(command, "COUNTRY", 7) == 0 )
        {
            char *country_code;
@@ -2529,7 +2522,6 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
        {
            tANI_U8 *value = command;
            tANI_U16 maxTime = CFG_NEIGHBOR_SCAN_MAX_CHAN_TIME_DEFAULT;
-           tANI_U16 homeAwayTime = 0;
 
            /* Move pointer to ahead of SETSCANCHANNELTIME<delimiter> */
            value = value + 19;
@@ -2563,21 +2555,6 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
                       "%s: Received Command to change channel max time = %d", __func__, maxTime);
 
            pHddCtx->cfg_ini->nNeighborScanMaxChanTime = maxTime;
-
-           /* Home Away Time should be atleast equal to (MaxDwell time + (2*RFS)),
-           *  where RFS is the RF Switching time. It is twice RFS to consider the
-           *  time to go off channel and return to the home channel. */
-           homeAwayTime = sme_getRoamScanHomeAwayTime((tHalHandle)(pHddCtx->hHal));
-           if (homeAwayTime < (maxTime + (2 * HDD_ROAM_SCAN_CHANNEL_SWITCH_TIME)))
-           {
-               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_WARN,
-                      "%s: Invalid config, Home away time(%d) is less than (twice RF switching time + channel max time)(%d)",
-                      " Hence enforcing home away time to disable (0)",
-                      __func__, homeAwayTime, (maxTime + (2 * HDD_ROAM_SCAN_CHANNEL_SWITCH_TIME)));
-               homeAwayTime = 0;
-               pHddCtx->cfg_ini->nRoamScanHomeAwayTime = homeAwayTime;
-               sme_UpdateRoamScanHomeAwayTime((tHalHandle)(pHddCtx->hHal), homeAwayTime, eANI_BOOLEAN_FALSE);
-           }
            sme_setNeighborScanMaxChanTime((tHalHandle)(pHddCtx->hHal), maxTime);
        }
        else if (strncmp(command, "GETSCANCHANNELTIME", 18) == 0)
@@ -2766,7 +2743,6 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
        {
            tANI_U8 *value = command;
            tANI_U16 homeAwayTime = CFG_ROAM_SCAN_HOME_AWAY_TIME_DEFAULT;
-           tANI_U16 scanChannelMaxTime = 0;
 
            /* Move pointer to ahead of SETSCANHOMEAWAYTIME<delimiter> */
            /* input value is in units of msec */
@@ -2799,20 +2775,6 @@ int hdd_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 
            VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                       "%s: Received Command to Set scan away time = %d", __func__, homeAwayTime);
-
-           /* Home Away Time should be atleast equal to (MaxDwell time + (2*RFS)),
-           *  where RFS is the RF Switching time. It is twice RFS to consider the
-           *  time to go off channel and return to the home channel. */
-           scanChannelMaxTime = sme_getNeighborScanMaxChanTime((tHalHandle)(pHddCtx->hHal));
-           if (homeAwayTime < (scanChannelMaxTime + (2 * HDD_ROAM_SCAN_CHANNEL_SWITCH_TIME)))
-           {
-               VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_WARN,
-                      "%s: Invalid config, Home away time(%d) is less than (twice RF switching time + channel max time)(%d)",
-                      " Hence enforcing home away time to disable (0)",
-                      __func__, homeAwayTime, (scanChannelMaxTime + (2 * HDD_ROAM_SCAN_CHANNEL_SWITCH_TIME)));
-               homeAwayTime = 0;
-           }
-
            if (pHddCtx->cfg_ini->nRoamScanHomeAwayTime != homeAwayTime)
            {
                pHddCtx->cfg_ini->nRoamScanHomeAwayTime = homeAwayTime;
@@ -3940,7 +3902,7 @@ static VOS_STATUS hdd_parse_ccx_beacon_req(tANI_U8 *pValue,
                 break;
 
                 case 2:  /* Scan mode */
-                if ((tempInt < 0) || (tempInt > 2))
+                if ((tempInt < eSIR_PASSIVE_SCAN) || (tempInt > eSIR_BEACON_TABLE))
                 {
                    VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                              "Invalid Scan Mode(%d) Expected{0|1|2}", tempInt);
@@ -3950,7 +3912,8 @@ static VOS_STATUS hdd_parse_ccx_beacon_req(tANI_U8 *pValue,
                 break;
 
                 case 3:  /* Measurement duration */
-                if (tempInt <= 0)
+                if (((tempInt <= 0) && (pCcxBcnReq->bcnReq[j].scanMode != eSIR_BEACON_TABLE)) ||
+                    ((tempInt < 0) && (pCcxBcnReq->bcnReq[j].scanMode == eSIR_BEACON_TABLE)))
                 {
                    VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
                              "Invalid Measurement Duration(%d)", tempInt);
@@ -4201,7 +4164,8 @@ VOS_STATUS hdd_parse_send_action_frame_data(tANI_U8 *pValue, tANI_U8 *pTargetApB
     /*getting the next argument ie the channel number */
     j = sscanf(inPtr, "%32s ", tempBuf);
     v = kstrtos32(tempBuf, 10, &tempInt);
-    if ( v < 0) return -EINVAL;
+    if ( v < 0 || tempInt <= 0 || tempInt > WNI_CFG_CURRENT_CHANNEL_STAMAX )
+     return -EINVAL;
 
     *pChannel = tempInt;
 
@@ -4221,7 +4185,7 @@ VOS_STATUS hdd_parse_send_action_frame_data(tANI_U8 *pValue, tANI_U8 *pTargetApB
     /*getting the next argument ie the dwell time */
     j = sscanf(inPtr, "%32s ", tempBuf);
     v = kstrtos32(tempBuf, 10, &tempInt);
-    if ( v < 0) return -EINVAL;
+    if ( v < 0 || tempInt <= 0) return -EINVAL;
 
     *pDwellTime = tempInt;
 
@@ -4243,8 +4207,8 @@ VOS_STATUS hdd_parse_send_action_frame_data(tANI_U8 *pValue, tANI_U8 *pTargetApB
     while(('\0' !=  *dataEnd) )
     {
         dataEnd++;
-        ++(*pBufLen);
     }
+    *pBufLen = dataEnd - inPtr ;
     if ( *pBufLen <= 0)  return -EINVAL;
 
     /* Allocate the number of bytes based on the number of input characters
@@ -4268,7 +4232,14 @@ VOS_STATUS hdd_parse_send_action_frame_data(tANI_U8 *pValue, tANI_U8 *pTargetApB
        and f0 in 3rd location */
     for (i = 0, j = 0; j < *pBufLen; j += 2)
     {
-        tempByte = (hdd_parse_hex(inPtr[j]) << 4) | (hdd_parse_hex(inPtr[j + 1]));
+        if( j+1 == *pBufLen)
+        {
+             tempByte = hdd_parse_hex(inPtr[j]);
+        }
+        else
+        {
+              tempByte = (hdd_parse_hex(inPtr[j]) << 4) | (hdd_parse_hex(inPtr[j + 1]));
+        }
         (*pBuf)[i++] = tempByte;
     }
     *pBufLen = i;
@@ -5335,7 +5306,7 @@ VOS_STATUS hdd_init_station_mode( hdd_adapter_t *pAdapter )
    }
    
    //Block on a completion variable. Can't wait forever though.
-   rc = wait_for_completion_interruptible_timeout(
+   rc = wait_for_completion_timeout(
                         &pAdapter->session_open_comp_var,
                         msecs_to_jiffies(WLAN_WAIT_TIME_SESSIONOPENCLOSE));
    if (!rc)
@@ -5536,11 +5507,10 @@ void hdd_cleanup_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter, tANI_
 #endif
 
 #ifdef CONFIG_PERFLOCK
-#ifdef CONFIG_METRICO_TP
+//#ifdef CONFIG_METRICO_TP
    cancel_delayed_work_sync(&pAdapter->traffic_monitor_dq);
    wake_lock_destroy(&pAdapter->traffic_monitor_wlock);
-   bam_wifihotspot_speedmode(0); /* Enable the poll-timer-algorithm of LTE-Rx */
-#endif
+//#endif
 #endif
 
 #ifdef FEATURE_WLAN_BATCH_SCAN
@@ -5838,6 +5808,11 @@ hdd_adapter_t* hdd_open_adapter( hdd_context_t *pHddCtx, tANI_U8 session_type,
             hdd_deinit_adapter(pHddCtx, pAdapter);
             goto err_free_netdev;
          }
+
+#ifdef WLAN_NS_OFFLOAD
+         // Workqueue which gets scheduled in IPv6 notification callback.
+         INIT_WORK(&pAdapter->ipv6NotifierWorkQueue, hdd_ipv6_notifier_work_queue);
+#endif
          //Stop the Interface TX queue.
          netif_tx_disable(pAdapter->dev);
          //netif_tx_disable(pWlanDev);
@@ -5938,14 +5913,14 @@ hdd_adapter_t* hdd_open_adapter( hdd_context_t *pHddCtx, tANI_U8 session_type,
    }
 
 #ifdef CONFIG_PERFLOCK
-#ifdef CONFIG_METRICO_TP
+//#ifdef CONFIG_METRICO_TP
    if ( NULL != pAdapter ) {
       INIT_DELAYED_WORK(&pAdapter->traffic_monitor_dq, wlan_hdd_cfg80211_traffic_monitor);
       wake_lock_init(&pAdapter->traffic_monitor_wlock, WAKE_LOCK_SUSPEND, "qcom-wifi-perf");
       pAdapter->traffic_curr_count = 0;
       pAdapter->traffic_last_count = 0;
    }
-#endif
+//#endif
 #endif
 
    if( VOS_STATUS_SUCCESS == status )
@@ -6144,6 +6119,11 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter )
          {
             hdd_abort_mac_scan(pHddCtx);
          }
+#ifdef WLAN_OPEN_SOURCE
+#ifdef WLAN_NS_OFFLOAD
+         cancel_work_sync(&pAdapter->ipv6NotifierWorkQueue);
+#endif
+#endif
 
          if (test_bit(SME_SESSION_OPENED, &pAdapter->event_flags)) 
          {
@@ -6244,13 +6224,13 @@ VOS_STATUS hdd_stop_all_adapters( hdd_context_t *pHddCtx )
    {
       pAdapter = pAdapterNode->pAdapter;
 #ifdef CONFIG_PERFLOCK
-#ifdef CONFIG_METRICO_TP
+//#ifdef CONFIG_METRICO_TP
       cancel_delayed_work_sync(&pAdapter->traffic_monitor_dq);
       if (htc_wlan_perf_lock) {
           printk("\n[WLAN]: unlock cpu here due to shutdown\n");
           wake_unlock(&pAdapter->traffic_monitor_wlock);
       }
-#endif
+//#endif
 #endif
       netif_tx_disable(pAdapter->dev);
       netif_carrier_off(pAdapter->dev);
@@ -6499,8 +6479,8 @@ void hdd_dump_concurrency_info(hdd_context_t *pHddCtx)
                      p2pMode, p2pChannel, MAC_ADDR_ARRAY(p2pBssid));
    }
    if (apChannel > 0) {
-       n += printf("AP(%d) " MAC_ADDRESS_STR,
-                     apChannel, MAC_ADDR_ARRAY(apBssid));
+       n += printf("AP(%d) %02x:%02x:%02x:%02x:%02x:%02x",
+                     apChannel, ~apBssid[0]&0xff, ~apBssid[1]&0xff, ~apBssid[2]&0xff, ~apBssid[3]&0xff, ~apBssid[4]&0xff, ~apBssid[5]&0xff);
    }
 
    if (p2pChannel > 0 && apChannel > 0) {
@@ -7771,6 +7751,7 @@ int hdd_wlan_startup(struct device *dev )
    init_completion(&pHddCtx->req_bmps_comp_var);
    init_completion(&pHddCtx->scan_info.scan_req_completion_event);
    init_completion(&pHddCtx->scan_info.abortscan_event_var);
+   init_completion(&pHddCtx->wiphy_channel_update_event);
 
 #ifdef CONFIG_ENABLE_LINUX_REG
    init_completion(&pHddCtx->linux_reg_req);
@@ -7782,6 +7763,7 @@ int hdd_wlan_startup(struct device *dev )
 
    hdd_list_init( &pHddCtx->hddAdapters, MAX_NUMBER_OF_ADAPTERS );
 
+   pHddCtx->nEnableStrictRegulatoryForFCC = TRUE;
    // Load all config first as TL config is needed during vos_open
    pHddCtx->cfg_ini = (hdd_config_t*) kmalloc(sizeof(hdd_config_t), GFP_KERNEL);
    if(pHddCtx->cfg_ini == NULL)
@@ -8306,9 +8288,9 @@ int hdd_wlan_startup(struct device *dev )
    wlan_hdd_restart_init(pHddCtx);
 
 #ifdef CONFIG_PERFLOCK
-#ifdef CONFIG_METRICO_TP
+//#ifdef CONFIG_METRICO_TP
    schedule_delayed_work(&pAdapter->traffic_monitor_dq, 3*HZ);
-#endif
+//#endif
 #endif
 
    //Register the traffic monitor timer now
@@ -8561,10 +8543,12 @@ static int hdd_driver_init( void)
    }
    else
    {
+      tVOS_CONCURRENCY_MODE concurrent_state;
       //Send WLAN UP indication to Nlink Service
       send_btc_nlink_msg(WLAN_MODULE_UP_IND, 0);
+      concurrent_state = hdd_get_concurrency_mode();
 
-      printf("%s: driver loaded\n", WLAN_MODULE_NAME);
+      printf("%s: driver loaded, mode = %d\n", WLAN_MODULE_NAME, concurrent_state);
    }
 
    EXIT();
@@ -8977,6 +8961,7 @@ v_BOOL_t hdd_is_suspend_notify_allowed(hdd_context_t* pHddCtx)
 
 void wlan_hdd_set_concurrency_mode(hdd_context_t *pHddCtx, tVOS_CON_MODE mode)
 {
+   tVOS_CON_MODE tmp = pHddCtx->concurrency_mode;
    switch(mode)
    {
        case VOS_STA_MODE:
@@ -8990,6 +8975,7 @@ void wlan_hdd_set_concurrency_mode(hdd_context_t *pHddCtx, tVOS_CON_MODE mode)
             break;
 
    }
+   printf("%s: old mode = %d, or = %d, current mode = %d\n", __func__, tmp, mode, pHddCtx->concurrency_mode);
    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "%s: concurrency_mode = 0x%x NumberofSessions for mode %d = %d",
     __func__,pHddCtx->concurrency_mode,mode,pHddCtx->no_of_sessions[mode]);
 }
@@ -8997,6 +8983,7 @@ void wlan_hdd_set_concurrency_mode(hdd_context_t *pHddCtx, tVOS_CON_MODE mode)
 
 void wlan_hdd_clear_concurrency_mode(hdd_context_t *pHddCtx, tVOS_CON_MODE mode)
 {
+   tVOS_CON_MODE tmp = pHddCtx->concurrency_mode;
    switch(mode)
    {
        case VOS_STA_MODE:
@@ -9010,6 +8997,7 @@ void wlan_hdd_clear_concurrency_mode(hdd_context_t *pHddCtx, tVOS_CON_MODE mode)
        default:
             break;
    }
+   printf("%s: old mode = %d, clear = %d, current mode = %d\n", __func__, tmp, mode, pHddCtx->concurrency_mode);
    VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO, "%s: concurrency_mode = 0x%x NumberofSessions for mode %d = %d",
     __func__,pHddCtx->concurrency_mode,mode,pHddCtx->no_of_sessions[mode]);
 }

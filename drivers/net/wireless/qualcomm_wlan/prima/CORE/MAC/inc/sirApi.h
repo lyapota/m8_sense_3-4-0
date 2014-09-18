@@ -354,6 +354,7 @@ typedef enum eSirResultCodes
 #ifdef WLAN_FEATURE_GTK_OFFLOAD
     eSIR_SME_GTK_OFFLOAD_GETINFO_REQ_FAILED,
 #endif // WLAN_FEATURE_GTK_OFFLOAD
+    eSIR_SME_DEAUTH_STATUS,
     eSIR_DONOT_USE_RESULT_CODE = SIR_MAX_ENUM_SIZE    
 } tSirResultCodes;
 
@@ -1060,7 +1061,8 @@ typedef struct sSirSmeJoinReq
     tANI_U8             txBFCsnValue;
 #endif
     tANI_U8             isAmsduSupportInAMPDU;
-
+    tAniBool            isWMEenabled;
+    tAniBool            isQosEnabled;
     tAniTitanCBNeighborInfo cbNeighbors;
     tAniBool            spectrumMgtIndicator;
     tSirMacPowerCapInfo powerCap;
@@ -3445,6 +3447,15 @@ typedef struct sSirUpdateAPWPARSNIEsReq
 #define LFR_LOOKUP_THR_24MBPS_5G              -74
 #define LFR_SENSITIVITY_THR_DEFAULT             0
 #define LFR_LOOKUP_THR_DEFAULT                -78
+#define SIR_ROAM_MAX_CHANNELS            NUM_RF_CHANNELS
+#define SIR_ROAM_SCAN_MAX_PB_REQ_SIZE    450
+#define CHANNEL_LIST_STATIC                   1 /* Occupied channel list remains static */
+#define CHANNEL_LIST_DYNAMIC_INIT             2 /* Occupied channel list can be learnt after init */
+#define CHANNEL_LIST_DYNAMIC_FLUSH            3 /* Occupied channel list can be learnt after flush */
+#define CHANNEL_LIST_DYNAMIC_UPDATE           4 /* Occupied channel list can be learnt after update */
+#define SIR_ROAM_SCAN_24G_DEFAULT_CH     1
+#define SIR_ROAM_SCAN_5G_DEFAULT_CH      36
+#define SIR_ROAM_SCAN_RESERVED_BYTES     61
 #endif //WLAN_FEATURE_ROAM_SCAN_OFFLOAD
 
 // SME -> HAL - This is the host offload request. 
@@ -3631,18 +3642,6 @@ typedef struct sSirWlanSetRxpFilters
 #define SIR_PNO_24G_DEFAULT_CH     1
 #define SIR_PNO_5G_DEFAULT_CH      36
 
-#ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
-#define SIR_ROAM_MAX_CHANNELS            NUM_RF_CHANNELS
-#define SIR_ROAM_SCAN_MAX_PB_REQ_SIZE    450
-#define CHANNEL_LIST_STATIC                   1 /* Occupied channel list remains static */
-#define CHANNEL_LIST_DYNAMIC_INIT             2 /* Occupied channel list can be learnt after init */
-#define CHANNEL_LIST_DYNAMIC_FLUSH            3 /* Occupied channel list can be learnt after flush */
-#define CHANNEL_LIST_DYNAMIC_UPDATE           4 /* Occupied channel list can be learnt after update */
-#define SIR_ROAM_SCAN_24G_DEFAULT_CH     1
-#define SIR_ROAM_SCAN_5G_DEFAULT_CH      36
-#define SIR_ROAM_SCAN_RESERVED_BYTES     61
-#endif
-
 typedef enum
 {
    SIR_PNO_MODE_IMMEDIATE,
@@ -3688,6 +3687,43 @@ typedef struct sSirPNOScanReq
   tANI_U16  us5GProbeTemplateLen; 
   tANI_U8   p5GProbeTemplate[SIR_PNO_MAX_PB_REQ_SIZE]; 
 } tSirPNOScanReq, *tpSirPNOScanReq;
+
+typedef struct sSirSetRSSIFilterReq
+{
+  tANI_U8     rssiThreshold;
+} tSirSetRSSIFilterReq, *tpSirSetRSSIFilterReq;
+
+
+// Update Scan Params
+typedef struct {
+  tANI_U8   b11dEnabled;
+  tANI_U8   b11dResolved;
+  tANI_U8   ucChannelCount;
+  tANI_U8   aChannels[SIR_PNO_MAX_NETW_CHANNELS_EX];
+  tANI_U16  usPassiveMinChTime;
+  tANI_U16  usPassiveMaxChTime;
+  tANI_U16  usActiveMinChTime;
+  tANI_U16  usActiveMaxChTime;
+  tANI_U8   ucCBState;
+} tSirUpdateScanParams, * tpSirUpdateScanParams;
+
+// Preferred Network Found Indication
+typedef struct
+{
+  tANI_U16      mesgType;
+  tANI_U16      mesgLen;
+  /* Network that was found with the highest RSSI*/
+  tSirMacSSid   ssId;
+  /* Indicates the RSSI */
+  tANI_U8       rssi;
+  /* Length of the beacon or probe response
+   * corresponding to the candidate found by PNO */
+  tANI_U32      frameLength;
+  /* Index to memory location where the contents of
+   * beacon or probe response frame will be copied */
+  tANI_U8       data[1];
+} tSirPrefNetworkFoundInd, *tpSirPrefNetworkFoundInd;
+#endif //FEATURE_WLAN_SCAN_PNO
 
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
 typedef struct
@@ -3735,44 +3771,7 @@ typedef struct sSirRoamOffloadScanReq
   tSirRoamNetworkType ConnectedNetwork;
   tSirMobilityDomainInfo MDID;
 } tSirRoamOffloadScanReq, *tpSirRoamOffloadScanReq;
-#endif
-
-typedef struct sSirSetRSSIFilterReq
-{
-  tANI_U8     rssiThreshold;
-} tSirSetRSSIFilterReq, *tpSirSetRSSIFilterReq;
-
-
-// Update Scan Params 
-typedef struct {
-  tANI_U8   b11dEnabled; 
-  tANI_U8   b11dResolved;
-  tANI_U8   ucChannelCount; 
-  tANI_U8   aChannels[SIR_PNO_MAX_NETW_CHANNELS_EX]; 
-  tANI_U16  usPassiveMinChTime; 
-  tANI_U16  usPassiveMaxChTime; 
-  tANI_U16  usActiveMinChTime; 
-  tANI_U16  usActiveMaxChTime; 
-  tANI_U8   ucCBState; 
-} tSirUpdateScanParams, * tpSirUpdateScanParams;
-
-// Preferred Network Found Indication
-typedef struct
-{  
-  tANI_U16      mesgType;
-  tANI_U16      mesgLen;
-  /* Network that was found with the highest RSSI*/
-  tSirMacSSid   ssId;
-  /* Indicates the RSSI */
-  tANI_U8       rssi;
-  /* Length of the beacon or probe response
-   * corresponding to the candidate found by PNO */
-  tANI_U32      frameLength;
-  /* Index to memory location where the contents of
-   * beacon or probe response frame will be copied */
-  tANI_U8       data[1];
-} tSirPrefNetworkFoundInd, *tpSirPrefNetworkFoundInd;
-#endif // FEATURE_WLAN_SCAN_PNO
+#endif //WLAN_FEATURE_ROAM_SCAN_OFFLOAD
 
 #define SIR_NOCHANGE_POWER_VALUE  0xFFFFFFFF
 
@@ -4414,6 +4413,7 @@ typedef struct sSirUpdateChanParam
 {
     tANI_U8 chanId;
     tANI_U8 pwr;
+    tANI_BOOLEAN dfsSet;
 } tSirUpdateChanParam, *tpSirUpdateChanParam;
 
 typedef struct sSirUpdateChan
