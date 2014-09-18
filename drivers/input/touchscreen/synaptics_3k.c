@@ -252,12 +252,12 @@ extern unsigned int get_tamper_sf(void);
 
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_SWEEP2SLEEP
 #define S2S_Y_MAX 2880
-#define S2S_X_MAX 1920
-#define S2S_Y_DELTA 180
+#define S2S_X_MAX 1800
+#define S2S_Y_DELTA 220
 #define S2S_Y_LIMIT S2S_Y_MAX-S2S_Y_DELTA
 #define S2S_X_P1 600
 #define S2S_X_P2 S2S_X_MAX-S2S_X_P1
-#define S2S_X_EPS 600
+#define S2S_X_EPS 500
 #define S2S_PWRKEY_DUR 60
 
 static int direction = 0;
@@ -2338,7 +2338,7 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 		}
 
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_SWEEP2SLEEP
-		if ((((ts->finger_count > 0)?1:0) == 0) && (s2s_switch > 0)) {
+		if (!ts->finger_count && s2s_switch > 0) {
 			reset_s2s();
 		}
 #endif		
@@ -2485,7 +2485,8 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 						finger_pressed &= ~BIT(i);
 
 #ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_SWEEP2SLEEP
-						detect_sweep2sleep(x_pos[i], y_pos[i]);
+						if (ts->finger_count < 2 && s2s_switch > 0)
+							detect_sweep2sleep(x_pos[i], y_pos[i]);
 #endif
 
 						if ((finger_press_changed & BIT(i)) && ts->debug_log_level & BIT(3)) {
