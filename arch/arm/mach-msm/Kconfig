@@ -3169,7 +3169,6 @@ config HTC_PANEL_PWR_REG
         bool "Register DSI Panel Power"
 		default y if ARCH_MSM8226
 
-
 config MACH_M8
         depends on ARCH_MSM8974
         bool "MSM8974 M8"
@@ -3181,7 +3180,6 @@ config PROJECT_NAME
         default ""
         help
           Support for Project Name
-
 
 endif
 

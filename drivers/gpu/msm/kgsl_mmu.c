@@ -85,7 +85,7 @@ error_pt:
 	return status;
 }
 
-static void _kgsl_destroy_pagetable(struct kgsl_pagetable *pagetable)
+void _kgsl_destroy_pagetable(struct kgsl_pagetable *pagetable)
 {
 	pagetable_remove_sysfs_objects(pagetable);
 
@@ -119,9 +119,9 @@ static void kgsl_destroy_pagetable_locked(struct kref *kref)
 	struct kgsl_pagetable *pagetable = container_of(kref,
 		struct kgsl_pagetable, refcount);
 
-	list_del(&pagetable->list);
+	list_move(&pagetable->list, &kgsl_driver.removed_pagetable_list);
 
-	_kgsl_destroy_pagetable(pagetable);
+	schedule_work(&kgsl_driver.destroy_removed_pagetable_work);
 }
 
 static inline void kgsl_put_pagetable(struct kgsl_pagetable *pagetable)
@@ -133,11 +133,11 @@ static inline void kgsl_put_pagetable(struct kgsl_pagetable *pagetable)
 static struct kgsl_pagetable *
 kgsl_get_pagetable(unsigned long name)
 {
-	struct kgsl_pagetable *pt, *ret = NULL;
+	struct kgsl_pagetable *pt, *tmp, *ret = NULL;
 	unsigned long flags;
 
 	spin_lock_irqsave(&kgsl_driver.ptlock, flags);
-	list_for_each_entry(pt, &kgsl_driver.pagetable_list, list) {
+	list_for_each_entry_safe(pt, tmp, &kgsl_driver.pagetable_list, list) {
 		if (kref_get_unless_zero(&pt->refcount)) {
 			if (pt->name == name) {
 				ret = pt;
@@ -333,13 +333,13 @@ err:
 int
 kgsl_mmu_get_ptname_from_ptbase(struct kgsl_mmu *mmu, phys_addr_t pt_base)
 {
-	struct kgsl_pagetable *pt;
+	struct kgsl_pagetable *pt, *tmp;
 	int ptid = -1;
 
 	if (!mmu->mmu_ops || !mmu->mmu_ops->mmu_pt_equal)
 		return KGSL_MMU_GLOBAL_PT;
 	spin_lock(&kgsl_driver.ptlock);
-	list_for_each_entry(pt, &kgsl_driver.pagetable_list, list) {
+	list_for_each_entry_safe(pt, tmp, &kgsl_driver.pagetable_list, list) {
 		if (kref_get_unless_zero(&pt->refcount)) {
 			if (mmu->mmu_ops->mmu_pt_equal(mmu, pt, pt_base)) {
 				ptid = (int) pt->name;
@@ -360,13 +360,13 @@ unsigned int
 kgsl_mmu_log_fault_addr(struct kgsl_mmu *mmu, phys_addr_t pt_base,
 					unsigned int addr)
 {
-	struct kgsl_pagetable *pt;
+	struct kgsl_pagetable *pt, *tmp;
 	unsigned int ret = 0;
 
 	if (!mmu->mmu_ops || !mmu->mmu_ops->mmu_pt_equal)
 		return 0;
 	spin_lock(&kgsl_driver.ptlock);
-	list_for_each_entry(pt, &kgsl_driver.pagetable_list, list) {
+	list_for_each_entry_safe(pt, tmp, &kgsl_driver.pagetable_list, list) {
 		if (kref_get_unless_zero(&pt->refcount)) {
 			if (mmu->mmu_ops->mmu_pt_equal(mmu, pt, pt_base)) {
 				if ((addr & ~(PAGE_SIZE-1)) == pt->fault_addr) {

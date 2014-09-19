@@ -358,6 +358,7 @@ int __init htc_cpu_usage_register(void)
 
 
 
+
 static struct android_usb_platform_data android_usb_pdata = {
 	.vendor_id      = 0x0bb4,
 	.product_id     = 0x060e, 
@@ -392,6 +393,9 @@ static void htc_8974_add_usb_devices(void)
 #elif defined(CONFIG_MACH_DUMMY)
 		android_usb_pdata.nluns = 2;
 		android_usb_pdata.cdrom_lun = 0x2;
+#elif defined(CONFIG_MACH_MEC_WHL)
+		android_usb_pdata.nluns = 2;
+		android_usb_pdata.cdrom_lun = 0x2;
 #else
 		android_usb_pdata.nluns = 1;
 		android_usb_pdata.cdrom_lun = 0x1;
@@ -413,12 +417,6 @@ static void htc_8974_add_usb_devices(void)
 	android_usb_pdata.product_id	= 0x0643;
 #elif defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x063A;
-#elif defined(CONFIG_MACH_DUMMY)
-	android_usb_pdata.product_id	= 0x0635;
-#elif defined(CONFIG_MACH_DUMMY)
-	android_usb_pdata.product_id	= 0x0638;
-#elif defined(CONFIG_MACH_DUMMY)
-	android_usb_pdata.product_id	= 0x0636;
 #elif defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x0634;
 #elif defined(CONFIG_MACH_DUMMY)

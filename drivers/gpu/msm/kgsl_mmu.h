@@ -202,6 +202,7 @@ extern struct kgsl_mmu_pt_ops iommu_pt_ops;
 extern struct kgsl_mmu_ops gpummu_ops;
 extern struct kgsl_mmu_pt_ops gpummu_pt_ops;
 
+void _kgsl_destroy_pagetable(struct kgsl_pagetable *pagetable);
 struct kgsl_pagetable *kgsl_mmu_getpagetable(struct kgsl_mmu *,
 						unsigned long name);
 void kgsl_mmu_putpagetable(struct kgsl_pagetable *pagetable);

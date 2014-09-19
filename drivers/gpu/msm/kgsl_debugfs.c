@@ -295,32 +295,30 @@ static int process_mem_print(struct seq_file *s, void *unused)
 
 static int process_mem_open(struct inode *inode, struct file *file)
 {
+	int ret;
+	pid_t pid = (pid_t) (unsigned long) inode->i_private;
 	struct kgsl_process_private *private = NULL;
-	bool found = false;
 
-	
-	mutex_lock(&kgsl_driver.process_mutex);
-	list_for_each_entry(private, &kgsl_driver.process_list, list) {
-		if (private == inode->i_private) {
-			found = true;
-			atomic_inc(&((struct kgsl_process_private *)inode->i_private)->busy);
-			break;
-		}
-	}
-	mutex_unlock(&kgsl_driver.process_mutex);
+	private = kgsl_process_private_find(pid);
 
-	if (!found) {
-		
-		pr_info("kgsl: %s: process was released\n", __func__);
-		return -EACCES;
-	}
+	if (!private)
+		return -ENODEV;
 
-	return single_open(file, process_mem_print, inode->i_private);
+	ret = single_open(file, process_mem_print, private);
+	if (ret)
+		kgsl_process_private_put(private);
+
+	return ret;
 }
 
 static int process_mem_release(struct inode *inode, struct file *file)
 {
-	atomic_dec(&((struct kgsl_process_private *)inode->i_private)->busy);
+	struct kgsl_process_private *private =
+		((struct seq_file *)file->private_data)->private;
+
+	if (private)
+		kgsl_process_private_put(private);
+
 	return single_release(inode, file);
 }
 
@@ -349,8 +347,8 @@ kgsl_process_init_debugfs(struct kgsl_process_private *private)
 	private->debug_root->d_inode->i_uid = proc_d_debugfs->d_inode->i_uid;
 	private->debug_root->d_inode->i_gid = proc_d_debugfs->d_inode->i_gid;
 
-	dentry = debugfs_create_file("mem", 0400, private->debug_root, private,
-			    &process_mem_fops);
+	dentry = debugfs_create_file("mem", 0444, private->debug_root,
+		(void *) ((unsigned long) private->pid), &process_mem_fops);
 
 	if (IS_ERR(dentry)) {
 		ret = PTR_ERR(dentry);

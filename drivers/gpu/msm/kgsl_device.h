@@ -316,8 +316,6 @@ struct kgsl_process_private {
 		unsigned int cur;
 		unsigned int max;
 	} stats[KGSL_MEM_ENTRY_MAX];
-
-	atomic_t busy;
 };
 
 enum kgsl_process_priv_flags {
@@ -542,6 +540,19 @@ static inline void kgsl_cancel_events_timestamp(struct kgsl_device *device,
 void kgsl_cmdbatch_destroy(struct kgsl_cmdbatch *cmdbatch);
 
 void kgsl_cmdbatch_destroy_object(struct kref *kref);
+
+static inline int kgsl_process_private_get(struct kgsl_process_private *process)
+{
+	int ret = 0;
+	if (process != NULL)
+		ret = kref_get_unless_zero(&process->refcount);
+	return ret;
+}
+
+void kgsl_process_private_put(struct kgsl_process_private *private);
+
+
+struct kgsl_process_private *kgsl_process_private_find(pid_t pid);
 
 static inline void kgsl_cmdbatch_put(struct kgsl_cmdbatch *cmdbatch)
 {
