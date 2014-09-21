@@ -369,8 +369,6 @@ static struct android_usb_platform_data android_usb_pdata = {
 	.usb_rmnet_interface = "smd,bam",
 	.usb_diag_interface = "diag",
 	.fserial_init_string = "smd:modem,tty,tty:autobot,tty:serial,tty:autobot,tty:acm",
-	.nluns = 1,
-	.cdrom_lun = 0x1,
 	.vzw_unmount_cdrom = 0,
 };
 
@@ -387,37 +385,23 @@ static void htc_8974_add_usb_devices(void)
 	android_usb_pdata.serial_number = board_serialno();
 
 	if (board_mfg_mode() == 0) {
-#ifdef CONFIG_MACH_M8_WHL
 		if (is_m8whl) {
 			android_usb_pdata.nluns = 2;
 			android_usb_pdata.cdrom_lun = 0x2;
 		} else {
-#elif defined(CONFIG_MACH_DUMMY)
-			android_usb_pdata.nluns = 2;
-			android_usb_pdata.cdrom_lun = 0x2;
-#elif defined(CONFIG_MACH_MEC_WHL)
-			android_usb_pdata.nluns = 2;
-			android_usb_pdata.cdrom_lun = 0x2;
-#else
 			android_usb_pdata.nluns = 1;
 			android_usb_pdata.cdrom_lun = 0x1;
-#endif
-#ifdef CONFIG_MACH_M8_WHL
 		}
-#endif
 	}
-#ifdef CONFIG_MACH_M8
 	if (is_m8)
 		android_usb_pdata.product_id	= 0x061A;
-#elif defined(CONFIG_MACH_M8_WL)
-	if (is_m8wl) {
+	else if (is_m8wl) {
 		android_usb_pdata.product_id	= 0x0616;
 		android_usb_pdata.vzw_unmount_cdrom = 1;
-	}
-#elif defined(CONFIG_MACH_M8_WHL)
-	if (is_m8whl)
+	} else if (is_m8whl)
 		android_usb_pdata.product_id	= 0x061A;
-#elif defined(CONFIG_MACH_DUMMY)
+
+#if defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x0623;
 #elif defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x0643;

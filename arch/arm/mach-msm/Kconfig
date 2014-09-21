@@ -3175,13 +3175,19 @@ config MACH_M8
         help
           Support for HTC MSM8974 M8
 
-config MACH_M8_WHL
+config MACH_M8_DTB
+        depends on ARCH_MSM8974
+        bool "MSM8974 M8"
+        help
+          Support for HTC MSM8974 M8
+
+config MACH_M8_WHL_DTB
         depends on ARCH_MSM8974
         bool "MSM8974 M8_WHL"
         help
           Support for HTC MSM8974 M8_WHL
 
-config MACH_M8_WL
+config MACH_M8_WL_DTB
         depends on ARCH_MSM8974
         bool "MSM8974 M8_WL"
         help
