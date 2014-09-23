@@ -112,10 +112,6 @@ void start_bandwidth_timer(struct hrtimer *period_timer, ktime_t period)
 DEFINE_MUTEX(sched_domains_mutex);
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
-#if defined(CONFIG_INTELLI_PLUG) || defined(CONFIG_CPUQUIET_FRAMEWORK)
-DEFINE_PER_CPU_SHARED_ALIGNED(struct nr_stats_s, runqueue_stats);
-#endif
-
 static void update_rq_clock_task(struct rq *rq, s64 delta);
 
 void update_rq_clock(struct rq *rq)
@@ -1690,7 +1686,6 @@ unsigned long avg_nr_running(void)
 	unsigned int seqcnt, ave_nr_running;
 
 	for_each_online_cpu(i) {
-		struct nr_stats_s *stats = &per_cpu(runqueue_stats, i);
 		struct rq *q = cpu_rq(i);
 
 		/*
@@ -1699,11 +1694,11 @@ unsigned long avg_nr_running(void)
 		 * the changes are happening right now, just read current value
 		 * directly.
 		 */
-		seqcnt = read_seqcount_begin(&stats->ave_seqcnt);
+		seqcnt = read_seqcount_begin(&q->ave_seqcnt);
 		ave_nr_running = do_avg_nr_running(q);
-		if (read_seqcount_retry(&stats->ave_seqcnt, seqcnt)) {
-			read_seqcount_begin(&stats->ave_seqcnt);
-			ave_nr_running = stats->ave_nr_running;
+		if (read_seqcount_retry(&q->ave_seqcnt, seqcnt)) {
+			read_seqcount_begin(&q->ave_seqcnt);
+			ave_nr_running = q->ave_nr_running;
 		}
 
 		sum += ave_nr_running;
@@ -1715,25 +1710,14 @@ EXPORT_SYMBOL(avg_nr_running);
 
 unsigned long avg_cpu_nr_running(unsigned int cpu)
 {
-	unsigned int seqcnt, ave_nr_running;
+	struct rq *q;
 
-	struct nr_stats_s *stats = &per_cpu(runqueue_stats, cpu);
-	struct rq *q = cpu_rq(cpu);
+	if (cpu >= nr_cpu_ids)
+		return 0;
 
-	/*
-	 * Update average to avoid reading stalled value if there were
-	 * no run-queue changes for a long time. On the other hand if
-	 * the changes are happening right now, just read current value
-	 * directly.
-	 */
-	seqcnt = read_seqcount_begin(&stats->ave_seqcnt);
-	ave_nr_running = do_avg_nr_running(q);
-	if (read_seqcount_retry(&stats->ave_seqcnt, seqcnt)) {
-		read_seqcount_begin(&stats->ave_seqcnt);
-		ave_nr_running = stats->ave_nr_running;
-	}
+	q = cpu_rq(cpu);
 
-	return ave_nr_running;
+	return q->ave_nr_running;
 }
 EXPORT_SYMBOL(avg_cpu_nr_running);
 #endif
