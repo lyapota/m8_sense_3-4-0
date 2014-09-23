@@ -29,6 +29,8 @@
 extern unsigned int cpq_max_cpus(void);
 extern unsigned int cpq_min_cpus(void);
 extern bool cpq_is_suspended(void);
+// from cpuquiet_driver.c
+extern unsigned int best_core_to_turn_up (void);
 
 typedef enum {
 	DISABLED,
@@ -295,7 +297,7 @@ static bool __load_stats_work_func(void)
 		sample = true;
 		break;
 	case UP:
-		cpu = cpumask_next_zero(0, cpu_online_mask);
+		cpu = best_core_to_turn_up ();
 		up = true;
 		sample = true;
 		break;

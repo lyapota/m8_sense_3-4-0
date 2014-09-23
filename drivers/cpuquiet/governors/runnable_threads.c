@@ -28,6 +28,8 @@
 // from cpuquiet.c
 extern unsigned int cpq_max_cpus(void);
 extern unsigned int cpq_min_cpus(void);
+// from cpuquiet_driver.c
+extern unsigned int best_core_to_turn_up (void);
 
 typedef enum {
 	DISABLED,
@@ -121,7 +123,7 @@ static void runnables_work_func(struct work_struct *work)
 		sample = true;
 		break;
 	case UP:
-		cpu = cpumask_next_zero(0, cpu_online_mask);
+		cpu = best_core_to_turn_up ();
 		up = true;
 		sample = true;
 		break;
