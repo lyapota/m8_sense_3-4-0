@@ -24,6 +24,9 @@
 
 #include "cpuquiet.h"
 
+unsigned int gov_enabled = 1;
+EXPORT_SYMBOL_GPL(gov_enabled);
+
 struct cpuquiet_dev {
 	unsigned int cpu;
 	struct kobject kobj;
@@ -37,7 +40,6 @@ struct cpuquiet_sysfs_attr {
 
 static struct kobject *cpuquiet_global_kobject;
 struct cpuquiet_dev *cpuquiet_cpu_devices[CONFIG_NR_CPUS];
-unsigned int gov_enabled = 1;
 
 static ssize_t show_current_governor(char *buf)
 {
@@ -127,7 +129,7 @@ static ssize_t store_enabled(const char *buf, size_t count)
 	unsigned int old_enabled;
 	char *p = (char *)buf;
 
-	if ((count <= 0) || (p[1] != '0' && p[1] !== '1'))
+	if ((count <= 0) || (p[1] != '0' && p[1] != '1'))
 		return 0;
 
 	if (!cpuquiet_curr_governor)
@@ -142,6 +144,7 @@ static ssize_t store_enabled(const char *buf, size_t count)
 	} else {
 		if (old_enabled && cpuquiet_curr_governor->stop)
 			cpuquiet_curr_governor->stop();
+		module_put(cpuquiet_curr_governor->owner);
 	}
 
 	return count;

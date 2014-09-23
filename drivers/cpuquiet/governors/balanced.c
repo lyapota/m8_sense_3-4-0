@@ -36,6 +36,9 @@ extern unsigned int best_core_to_turn_up (void);
 // from core.c
 extern unsigned long avg_nr_running(void);
 
+// from sysfs.c
+extern unsigned int gov_enabled;
+
 #define CPUNAMELEN 8
 
 #define UP_DELAY_MS			70

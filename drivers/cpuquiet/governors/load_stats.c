@@ -34,6 +34,9 @@ extern unsigned int best_core_to_turn_up (void);
 //from core.c
 extern unsigned long avg_cpu_nr_running(unsigned int cpu);
 
+// from sysfs.c
+extern unsigned int gov_enabled;
+
 typedef enum {
 	DISABLED,
 	IDLE,
