@@ -437,6 +437,9 @@ static int rq_stats_start(void)
 	if (err)
 		return err;
 
+	if (!gov_enabled)
+		return 0;
+
 	rq_stats_wq = alloc_workqueue("cpuquiet-rq_stats", WQ_HIGHPRI, 0);
 	if (!rq_stats_wq)
 		return -ENOMEM;

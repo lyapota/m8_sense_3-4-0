@@ -572,6 +572,9 @@ static int load_stats_start(void)
 	if (err)
 		return err;
 
+	if (!gov_enabled)
+		return 0;
+
 	load_stats_wq = alloc_workqueue("cpuquiet-load_stats", WQ_HIGHPRI, 0);
 	if (!load_stats_wq)
 		return -ENOMEM;

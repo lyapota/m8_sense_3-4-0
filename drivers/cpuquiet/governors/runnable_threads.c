@@ -251,6 +251,9 @@ static int runnables_start(void)
 	if (err)
 		return err;
 
+	if (!gov_enabled)
+		return 0;
+
 	runnables_wq = alloc_workqueue("cpuquiet-runnables", WQ_HIGHPRI, 0);
 	if (!runnables_wq)
 		return -ENOMEM;

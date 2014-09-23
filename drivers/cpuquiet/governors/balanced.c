@@ -443,7 +443,10 @@ static int balanced_start(void)
 	err = balanced_sysfs();
 	if (err)
 		return err;
-	
+
+	if (!gov_enabled)
+		return 0;
+
 	balanced_wq = alloc_workqueue("cpuquiet-balanced",
 			WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_HIGHPRI, 1);
 	if (!balanced_wq)
