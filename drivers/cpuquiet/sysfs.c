@@ -127,18 +127,21 @@ static ssize_t show_enabled(char *buf)
 static ssize_t store_enabled(const char *buf, size_t count)
 {
 	unsigned int old_enabled;
-	char *p = (char *)buf;
+	unsigned long num;
 
-	if ((count <= 0) || (p[1] != '0' && p[1] != '1'))
-		return 0;
-
-	if (!cpuquiet_curr_governor)
+	if ( !cpuquiet_curr_governor || strict_strtoul(buf, 10, &num) )
 		return -EINVAL;
 
-	old_enabled = gov_enabled;
-	gov_enabled = simple_strtoul(buf, NULL, 0);
+	if (num < 0 || num > 1)
+		return -EINVAL;
 
-	if (gov_enabled == 1) {
+        if (gov_enabled == (int) num)
+		return 0;
+
+	old_enabled = gov_enabled;
+	gov_enabled = (int) num;
+
+	if (gov_enabled) {
 		if (!old_enabled && cpuquiet_curr_governor->start)
 			cpuquiet_curr_governor->start();
 	} else {
