@@ -24,7 +24,7 @@
 
 #include "cpuquiet.h"
 
-unsigned int gov_enabled = 1;
+unsigned int gov_enabled = 0;
 EXPORT_SYMBOL_GPL(gov_enabled);
 
 struct cpuquiet_dev {
