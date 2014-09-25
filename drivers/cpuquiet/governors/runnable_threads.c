@@ -118,6 +118,9 @@ static void runnables_work_func(struct work_struct *work)
 	bool sample = false;
 	unsigned int cpu = nr_cpu_ids;
 
+	if (!gov_enabled)
+		return;
+
 	mutex_lock(&runnables_work_lock);
 
 	update_runnables_state();
@@ -256,9 +259,6 @@ static int runnables_start(void)
 	err = runnables_sysfs();
 	if (err)
 		return err;
-
-	if (!gov_enabled)
-		return 0;
 
 	runnables_wq = alloc_workqueue("cpuquiet-runnables", WQ_HIGHPRI, 0);
 	if (!runnables_wq)

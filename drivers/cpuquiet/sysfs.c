@@ -111,14 +111,10 @@ static ssize_t show_enabled(char *buf)
 {
 	ssize_t ret;
 
-	mutex_lock(&cpuquiet_lock);
-
 	if (cpuquiet_curr_governor)
 		ret = sprintf(buf, "%u\n", (gov_enabled==0) ? 0 : 1);
 	else
 		ret = sprintf(buf, "n/a\n");
-
-	mutex_unlock(&cpuquiet_lock);
 
 	return ret;
 
@@ -126,7 +122,6 @@ static ssize_t show_enabled(char *buf)
 
 static ssize_t store_enabled(const char *buf, size_t count)
 {
-	unsigned int old_enabled;
 	unsigned long num;
 
 	if ( !cpuquiet_curr_governor || strict_strtoul(buf, 10, &num) )
@@ -136,19 +131,12 @@ static ssize_t store_enabled(const char *buf, size_t count)
 		return -EINVAL;
 
         if (gov_enabled == (int) num)
-		return 0;
+		return count;
 
-	old_enabled = gov_enabled;
 	gov_enabled = (int) num;
 
-	if (gov_enabled) {
-		if (!old_enabled && cpuquiet_curr_governor->start)
-			cpuquiet_curr_governor->start();
-	} else {
-		if (old_enabled && cpuquiet_curr_governor->stop)
-			cpuquiet_curr_governor->stop();
-		module_put(cpuquiet_curr_governor->owner);
-	}
+       if (gov_enabled)
+		cpuquiet_switch_governor(cpuquiet_curr_governor);
 
 	return count;
 }

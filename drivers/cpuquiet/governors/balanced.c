@@ -233,6 +233,9 @@ static void balanced_work_func(struct work_struct *work)
 	
 	CPU_SPEED_BALANCE balance;
 
+	if (!gov_enabled)
+		return;
+
 	switch (balanced_state) {
 	case IDLE:
 		break;
@@ -448,9 +451,6 @@ static int balanced_start(void)
 	err = balanced_sysfs();
 	if (err)
 		return err;
-
-	if (!gov_enabled)
-		return 0;
 
 	balanced_wq = alloc_workqueue("cpuquiet-balanced",
 			WQ_UNBOUND | WQ_MEM_RECLAIM | WQ_HIGHPRI, 1);

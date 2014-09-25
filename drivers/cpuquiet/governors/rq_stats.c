@@ -200,6 +200,9 @@ static void rq_stats_work_func(struct work_struct *work)
 {
 	bool sample = false;
 
+	if (!gov_enabled)
+		return;
+
 	mutex_lock(&rq_stats_work_lock);
 
 	update_rq_stats_state();
@@ -414,6 +417,9 @@ static void rq_stats_device_free(void)
 
 static void load_stats_touch_event(void)
 {
+	if (!gov_enabled)
+		return;
+
 	if (!cpq_is_suspended() && input_boost_enabled && !input_boost_running){
 		if (input_boost_task_alive)
 			wake_up_process(input_boost_task);
@@ -441,9 +447,6 @@ static int rq_stats_start(void)
 	err = rq_stats_sysfs();
 	if (err)
 		return err;
-
-	if (!gov_enabled)
-		return 0;
 
 	rq_stats_wq = alloc_workqueue("cpuquiet-rq_stats", WQ_HIGHPRI, 0);
 	if (!rq_stats_wq)
