@@ -1734,6 +1734,7 @@
 			< 4912 /* 614 MHz */ >,
 			< 6400 /* 800 MHz */ >,
 			< 7448 /* 931 MHz */ >;
+	};
 
 	qcom,msm-cpufreq@0 {
 		qcom,cpufreq-table =
