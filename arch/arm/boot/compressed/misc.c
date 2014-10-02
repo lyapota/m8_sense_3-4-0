@@ -23,6 +23,7 @@ unsigned int __machine_arch_type;
 #include <linux/linkage.h>
 #ifdef CONFIG_KEXEC_HARDBOOT
 #include <asm/setup.h>
+#include <asm/string.h>
 #endif
 
 static void putstr(const char *ptr);
