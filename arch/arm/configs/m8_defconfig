@@ -59,6 +59,7 @@ CONFIG_CPUQUIET_DEFAULT_GOV_RUNNABLE=y
 #***
 CONFIG_KEXEC=y
 CONFIG_KEXEC_HARDBOOT=y
+CONFIG_ATAGS_PROC=y
 
 
 ################## HTC ##################
