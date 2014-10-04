@@ -62,6 +62,18 @@ CONFIG_KEXEC=y
 CONFIG_KEXEC_HARDBOOT=y
 CONFIG_PROC_DEVICETREE=y
 
+#***
+# congestion control algorithms
+#***
+CONFIG_TCP_CONG_ADVANCED=y
+# CONFIG_TCP_CONG_BIC is not set
+CONFIG_TCP_CONG_CUBIC=y
+CONFIG_TCP_CONG_VEGAS=y
+CONFIG_TCP_CONG_WESTWOOD=y
+CONFIG_DEFAULT_TCP_CONG="westwood"
+
+
+
 
 ################## HTC ##################
 
