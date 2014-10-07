@@ -303,7 +303,7 @@ static void mako_hotplug_suspend(struct early_suspend *handler)
 	if (mako_hotplug_active) {
 		int cpu;
 
-		flush_workqueue(decide_hotplug_func);
+		flush_workqueue(wq);
 
 		statsm.counter = 0;
 
@@ -326,7 +326,7 @@ static void mako_hotplug_suspend(struct early_suspend *handler)
 
 #ifdef CONFIG_POWERSUSPEND
 static void __cpuinit mako_hotplug_resume(struct power_suspend *handler)
-#else CONFIG_HAS_EARLYSUSPEND
+#else
 static void __cpuinit mako_hotplug_resume(struct early_suspend *handler)
 #endif
 {
