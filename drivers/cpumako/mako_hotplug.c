@@ -203,7 +203,7 @@ static void cpu_smash(void)
 	statsm.counter = 0;
 }
 
-static void __ref decide_hotplug_func(struct work_struct *work)
+static void __cpuinit decide_hotplug_func(struct work_struct *work)
 {
 	struct hotplug_tunables *t = &tunables;
 	unsigned long cur_load = 0;
@@ -585,6 +585,7 @@ static int __devinit mako_hotplug_probe(struct platform_device *pdev)
 
 	if (!wq) {
 		ret = -ENOMEM;
+		pr_err("%s: alloc_workqueue filed \n", MAKO_HOTPLUG);
 		goto err;
 	}
 
@@ -600,6 +601,7 @@ static int __devinit mako_hotplug_probe(struct platform_device *pdev)
 	ret = misc_register(&mako_hotplug_control_device);
 	if (ret) {
 		ret = -EINVAL;
+		pr_err("%s: misc_register filed \n", MAKO_HOTPLUG);
 		goto err;
 	}
 
@@ -607,14 +609,17 @@ static int __devinit mako_hotplug_probe(struct platform_device *pdev)
 			&mako_hotplug_control_group);
 	if (ret) {
 		ret = -EINVAL;
+		pr_err("%s: sysfs_create_group filed \n", MAKO_HOTPLUG);
 		goto err;
 	}
 
 #ifdef CONFIG_POWERSUSPEND
 	register_power_suspend(&mako_hotplug_power_suspend_driver);
+	pr_info("%s: register_power_suspend\n", MAKO_HOTPLUG);
 #endif
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	register_early_suspend(&mako_hotplug_early_suspend_driver);
+	pr_info("%s: register_early_suspend\n", MAKO_HOTPLUG);
 #endif
 	INIT_DELAYED_WORK(&decide_hotplug, decide_hotplug_func);
 
@@ -622,6 +627,8 @@ static int __devinit mako_hotplug_probe(struct platform_device *pdev)
 
 	cpufreq_register_notifier(&cpufreq_notifier,
 			CPUFREQ_POLICY_NOTIFIER);
+
+	pr_info("%s: probe OK.\n", MAKO_HOTPLUG);
 
 err:
 	return ret;
@@ -635,6 +642,7 @@ static struct platform_device mako_hotplug_device = {
 static int mako_hotplug_remove(struct platform_device *pdev)
 {
 	destroy_workqueue(wq);
+	pr_info("%s: removed\n", MAKO_HOTPLUG);
 
 	return 0;
 }
@@ -669,6 +677,7 @@ static void __exit mako_hotplug_exit(void)
 {
 	platform_device_unregister(&mako_hotplug_device);
 	platform_driver_unregister(&mako_hotplug_driver);
+	pr_info("%s: exit\n", MAKO_HOTPLUG);
 }
 
 late_initcall(mako_hotplug_init);
