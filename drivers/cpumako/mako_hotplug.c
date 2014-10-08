@@ -107,7 +107,7 @@ struct hotplug_tunables {
 	unsigned int timer;
 } tunables;
 
-unsigned int mako_hotplug_active = 0;
+static unsigned int mako_hotplug_active = 0;
 
 static struct workqueue_struct *wq;
 static struct delayed_work decide_hotplug;
@@ -348,7 +348,8 @@ static void __cpuinit mako_hotplug_resume(struct early_suspend *handler)
 
 		pr_info("%s: resume\n", MAKO_HOTPLUG);
 	}
-	queue_delayed_work_on(0, wq, &decide_hotplug, HZ * 20);
+	queue_delayed_work_on(0, wq, &decide_hotplug,
+		msecs_to_jiffies(10));
 }
 #endif
 
@@ -623,7 +624,8 @@ static int __devinit mako_hotplug_probe(struct platform_device *pdev)
 #endif
 	INIT_DELAYED_WORK(&decide_hotplug, decide_hotplug_func);
 
-	queue_delayed_work_on(0, wq, &decide_hotplug, HZ * 20);
+	queue_delayed_work_on(0, wq, &decide_hotplug,
+		msecs_to_jiffies(10));
 
 	cpufreq_register_notifier(&cpufreq_notifier,
 			CPUFREQ_POLICY_NOTIFIER);
