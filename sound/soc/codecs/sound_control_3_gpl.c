@@ -313,7 +313,7 @@ static ssize_t headphone_pa_gain_store(struct kobject *kobj,
 	return count;
 }
 
-static unsigned int selected_reg = 0xfeedfeed;
+static unsigned int selected_reg = 0xdeadbeef;
 
 static ssize_t sound_reg_select_store(struct kobject *kobj,
                 struct kobj_attribute *attr, const char *buf, size_t count)
