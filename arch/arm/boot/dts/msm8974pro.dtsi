@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,6 +27,7 @@
 		compatible = "qcom,android-usb";
 		reg = <0xfe8050c8 0xc8>;
 		qcom,android-usb-swfi-latency = <1>;
+		qcom,android-usb-uicc-nluns = /bits/ 8 <1>;
 	};
 
 	qcom,msm-imem@fe805000 {
@@ -1811,7 +1812,7 @@
 
                qcom,gpu-pwrlevel@3 {
                        reg = <3>;
-                       qcom,gpu-freq = <320000000>;
+                       qcom,gpu-freq = <330000000>;
                        qcom,bus-freq = <5>;
                        qcom,io-fraction = <101>;
                };
@@ -1833,6 +1834,7 @@
 };
 
 &mdss_mdp {
+	qcom,max-bandwidth-low-kbps = <2750000>;
 	qcom,vbif-settings = <0x0004 0x00000001>;
 
 	qcom,mdss-wb-off = <0x00011100 0x00011500
@@ -1877,7 +1879,7 @@
 	qcom,dec-ocmem-ab-ib = <0 0>,
 		<176000 519000>,
 		<456000 519000>,
-		<864000 519000>,
+		<864000 629000>,
 		<1728000 1038000>,
 		<2766000 1661000>,
 		<3456000 2076000>,
@@ -1898,6 +1900,10 @@
 		<3240000 1600000>,
 		<4048000 1600000>,
 		<4264000 1600000>;
+    /*
+     * Performance is guaranteed only upto POR specification. Anything
+     * above that specification is best effort and might even be rejected.
+     */
 	qcom,max-hw-load = <1281600>; /* max(4k X 2304 @ 24, 4k X 2160 @ 30) + 1080p @ 30 */
 	qcom,buffer-type-tz-usage-table = <0x241 0x1>,
 					<0x106 0x2>,
@@ -1928,9 +1934,13 @@
 				0x0fa00000 0x500000>; /* Address and size of the hole */
 };
 
+&gdsc_venus {
+	qcom,skip-logic-collapse;
+};
+
 &sdhc_1 {
 	reg = <0xf9824900 0x1a0>, <0xf9824000 0x800>;
 
-	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000 200000000 384000000>;
-	qcom,bus-speed-mode = "HS400_1p8v", "HS200_1p8v", "DDR_1p8v";
+	qcom,clk-rates = <400000 20000000 25000000 50000000 100000000 200000000>;
+	qcom,bus-speed-mode = "HS200_1p8v", "DDR_1p8v";
 };

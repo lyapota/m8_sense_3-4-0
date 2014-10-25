@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,14 +22,6 @@
 #define WCD9XXX_CLSH_EVENT_PRE_DAC 0x01
 #define WCD9XXX_CLSH_EVENT_POST_PA 0x02
 
-/* Basic states for Class H state machine.
- * represented as a bit mask within a u8 data type
- * bit 0: EAR mode
- * bit 1: HPH Left mode
- * bit 2: HPH Right mode
- * bit 3: Lineout mode
- * bit 4: Ultrasound mode
- */
 #define	WCD9XXX_CLSH_STATE_IDLE 0x00
 #define	WCD9XXX_CLSH_STATE_EAR (0x01 << 0)
 #define	WCD9XXX_CLSH_STATE_HPHL (0x01 << 1)
@@ -108,7 +100,6 @@ enum ncp_fclk_level {
 	NCP_FCLK_LEVEL_MAX,
 };
 
-/* Class H data that the codec driver will maintain */
 struct wcd9xxx_clsh_cdc_data {
 	u8 state;
 	int buck_mv;

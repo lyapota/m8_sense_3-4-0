@@ -846,7 +846,8 @@ void __blk_put_request(struct request_queue *q, struct request *req)
 	elv_completed_request(q, req);
 
 	
-	WARN_ON(req->bio != NULL);
+	WARN_ON(req->bio && !bio_flagged(req->bio, BIO_DONTFREE));
+
 
 	if (req->cmd_flags & REQ_ALLOCED) {
 		unsigned int flags = req->cmd_flags;
@@ -981,6 +982,8 @@ void init_request_from_bio(struct request *req, struct bio *bio)
 	if (bio->bi_rw & REQ_RAHEAD)
 		req->cmd_flags |= REQ_FAILFAST_MASK;
 
+	req->enter_time = ktime_get();
+	req->pid = task_pid_nr(current);
 	req->errors = 0;
 	req->__sector = bio->bi_sector;
 	req->ioprio = bio_prio(bio);
@@ -1590,6 +1593,10 @@ bool blk_update_request(struct request *req, int error, unsigned int nr_bytes)
 	blk_account_io_completion(req, nr_bytes);
 
 	total_bytes = bio_nbytes = 0;
+
+	if (bio_flagged(req->bio, BIO_DONTFREE))
+		return false;
+
 	while ((bio = req->bio) != NULL) {
 		int nbytes;
 

@@ -1,9 +1,3 @@
-/*
- * sysctl_net_ipv4.c: sysctl interface to net IPV4 subsystem.
- *
- * Begun April 1, 1996, Mike Shaver.
- * Added /proc/sys/net/ipv4 directory entry (empty =) ). [MS]
- */
 
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -36,8 +30,11 @@ static int ip_ttl_min = 1;
 static int ip_ttl_max = 255;
 static int ip_ping_group_range_min[] = { 0, 0 };
 static int ip_ping_group_range_max[] = { GID_T_MAX, GID_T_MAX };
+static int tcp_delack_seg_min = TCP_DELACK_MIN;
+static int tcp_delack_seg_max = 60;
+static int tcp_use_userconfig_min;
+static int tcp_use_userconfig_max = 1;
 
-/* Update system visible IP port range */
 static void set_local_port_range(int range[2])
 {
 	write_seqlock(&sysctl_local_ports.lock);
@@ -46,7 +43,6 @@ static void set_local_port_range(int range[2])
 	write_sequnlock(&sysctl_local_ports.lock);
 }
 
-/* Validate changes from /proc interface. */
 static int ipv4_local_port_range(ctl_table *table, int write,
 				 void __user *buffer,
 				 size_t *lenp, loff_t *ppos)
@@ -87,7 +83,6 @@ static void inet_get_ping_group_range_table(struct ctl_table *table, gid_t *low,
 	} while (read_seqretry(&sysctl_local_ports.lock, seq));
 }
 
-/* Update system visible IP port range */
 static void set_ping_group_range(struct ctl_table *table, gid_t range[2])
 {
 	gid_t *data = table->data;
@@ -97,7 +92,6 @@ static void set_ping_group_range(struct ctl_table *table, gid_t range[2])
 	write_sequnlock(&sysctl_local_ports.lock);
 }
 
-/* Validate changes from /proc interface. */
 static int ipv4_ping_group_range(ctl_table *table, int write,
 				 void __user *buffer,
 				 size_t *lenp, loff_t *ppos)
@@ -402,7 +396,7 @@ static struct ctl_table ipv4_table[] = {
 	},
 	{
 		.procname	= "ip_local_reserved_ports",
-		.data		= NULL, /* initialized in sysctl_ipv4_init */
+		.data		= NULL, 
 		.maxlen		= 65536,
 		.mode		= 0644,
 		.proc_handler	= proc_do_large_bitmap,
@@ -635,7 +629,7 @@ static struct ctl_table ipv4_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
 	},
-#endif /* CONFIG_NETLABEL */
+#endif 
 	{
 		.procname	= "tcp_available_congestion_control",
 		.maxlen		= TCP_CA_BUF_MAX,
@@ -708,7 +702,26 @@ static struct ctl_table ipv4_table[] = {
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero
 	},
-#endif /* CONFIG_HTC_TCP_SYN_FAIL */
+#endif 
+	{
+		.procname	= "tcp_delack_seg",
+		.data		= &sysctl_tcp_delack_seg,
+		.maxlen		= sizeof(sysctl_tcp_delack_seg),
+		.mode		= 0644,
+		.proc_handler = tcp_proc_delayed_ack_control,
+		.extra1		= &tcp_delack_seg_min,
+		.extra2		= &tcp_delack_seg_max,
+	},
+	{
+		.procname       = "tcp_use_userconfig",
+		.data           = &sysctl_tcp_use_userconfig,
+		.maxlen         = sizeof(sysctl_tcp_use_userconfig),
+		.mode           = 0644,
+		.proc_handler   = tcp_use_userconfig_sysctl_handler,
+		.extra1		    = &tcp_use_userconfig_min,
+		.extra2		    = &tcp_use_userconfig_max,
+	},
+
 	{ }
 };
 
@@ -814,10 +827,6 @@ static __net_init int ipv4_sysctl_init_net(struct net *net)
 
 	}
 
-	/*
-	 * Sane defaults - nobody may create ping sockets.
-	 * Boot scripts should set this to distro-specific group.
-	 */
 	net->ipv4.sysctl_ping_group_range[0] = 1;
 	net->ipv4.sysctl_ping_group_range[1] = 0;
 

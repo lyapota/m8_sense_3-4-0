@@ -62,6 +62,22 @@ extern int get_partition_num_by_name(char *name);
 #include <asm/kexec.h>
 #endif
 
+#if defined(CONFIG_MACH_EYE_UL)
+#define PN547_I2C_POWEROFF_SEQUENCE_FOR_EYE
+#elif defined(CONFIG_MACH_EYE_WHL)
+#define PN547_I2C_POWEROFF_SEQUENCE_FOR_EYE
+#elif defined(CONFIG_MACH_EYE_WL)
+#define PN547_I2C_POWEROFF_SEQUENCE_FOR_EYE
+#else
+#endif
+
+
+#if defined(PN547_I2C_POWEROFF_SEQUENCE_FOR_EYE)
+#define SR_I2C_SCL     11
+#define SR_I2C_SDA     10
+extern void force_disable_PM8941_VREG_ID_L22(void);
+#endif
+
 #define WDT0_RST	0x38
 #define WDT0_EN		0x40
 #define WDT0_BARK_TIME	0x4C
@@ -139,6 +155,8 @@ static void enable_emergency_dload_mode(void)
 		__raw_writel(EMERGENCY_DLOAD_MAGIC3,
 				emergency_dload_mode_addr +
 				(2 * sizeof(unsigned int)));
+
+		qpnp_pon_wd_config(0);
 		mb();
 	}
 }
@@ -183,7 +201,12 @@ static void msm_flush_console(void)
 	unsigned long flags;
 
 	printk("\n");
-	printk(KERN_EMERG "[K] Restarting %s\n", linux_banner);
+
+	if(board_rom_type())
+		printk(KERN_EMERG "[K] Restarting %s\n", linux_banner_stockui);
+	else
+		printk(KERN_EMERG "[K] Restarting %s\n", linux_banner);
+
 	if (console_trylock()) {
 		console_unlock();
 		return;
@@ -321,6 +344,21 @@ static void halt_spmi_pmic_arbiter(void)
 static void __msm_power_off(int lower_pshold)
 {
 	printk(KERN_CRIT "[K] Powering off the SoC\n");
+
+#if defined(PN547_I2C_POWEROFF_SEQUENCE_FOR_EYE)
+	
+	
+	gpio_tlmm_config(GPIO_CFG(SR_I2C_SCL, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA), GPIO_CFG_ENABLE);
+	gpio_set_value(SR_I2C_SCL, 0); 
+	mdelay(1);
+
+	gpio_tlmm_config(GPIO_CFG(SR_I2C_SDA, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_16MA), GPIO_CFG_ENABLE);
+	gpio_set_value(SR_I2C_SDA, 0); 
+	mdelay(1);
+
+	force_disable_PM8941_VREG_ID_L22(); 
+#endif
+
 #ifdef CONFIG_MSM_DLOAD_MODE
 	set_dload_mode(0);
 #endif
@@ -531,13 +569,6 @@ static void msm_kexec_hardboot_hook(void)
 
 	// These are executed on normal reboot, but with kexec-hardboot,
 	// they reboot/panic the system immediately.
-#if 0
-	qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
-
-	/* Needed to bypass debug image on some chips */
-	msm_disable_wdog_debug();
-	halt_spmi_pmic_arbiter();
-#endif
 }
 #endif
 

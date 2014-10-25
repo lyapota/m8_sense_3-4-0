@@ -574,8 +574,7 @@ static inline int kgsl_cmdbatch_sync_pending(struct kgsl_cmdbatch *cmdbatch)
 	return ret;
 }
 
-static inline ssize_t kgsl_sysfs_store(const char *buf, size_t count,
-		unsigned int *ptr)
+static inline int kgsl_sysfs_store(const char *buf, unsigned int *ptr)
 {
 	unsigned int val;
 	int rc;
@@ -587,9 +586,8 @@ static inline ssize_t kgsl_sysfs_store(const char *buf, size_t count,
 	if (ptr)
 		*ptr = val;
 
-	return count;
+	return 0;
 }
-
 
 static inline int kgsl_mutex_lock(struct mutex *mutex, atomic64_t *owner)
 {
@@ -599,9 +597,9 @@ static inline int kgsl_mutex_lock(struct mutex *mutex, atomic64_t *owner)
 		atomic64_set(owner, (long)current);
 		
 		smp_wmb();
-		return 0;
+		return 1;
 	}
-	return 1;
+	return 0;
 }
 
 static inline void kgsl_mutex_unlock(struct mutex *mutex, atomic64_t *owner)
