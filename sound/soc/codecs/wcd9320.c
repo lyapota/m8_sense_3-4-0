@@ -6520,7 +6520,7 @@ static int taiko_handle_pdata(struct taiko_priv *taiko)
 	snd_soc_update_bits(codec, TAIKO_A_MICB_4_CTL, 0x1E, value);
 
 	
-	if (pdata->mclk_rate == WCD9XXX_MCLK_CLK_9P6MHZ) {
+	if (pdata->mclk_rate == TAIKO_MCLK_CLK_9P6MHZ) {
 		switch (pdata->dmic_sample_rate) {
 		case WCD9XXX_DMIC_SAMPLE_RATE_2P4MHZ:
 			dmic_sample_rate_value = WCD9XXX_DMIC_SAMPLE_RATE_DIV_4;
