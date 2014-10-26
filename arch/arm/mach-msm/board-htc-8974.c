@@ -502,6 +502,8 @@ static void htc_8974_add_usb_devices(void)
 		android_usb_pdata.cdrom_lun = 0x3;
 	} else if (is_m8whl)
 		android_usb_pdata.product_id	= 0x061A;
+	else if (is_m8dug)
+		android_usb_pdata.product_id	= 0x063B;
 #elif defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x0616;
 	android_usb_pdata.vzw_unmount_cdrom = 1;
