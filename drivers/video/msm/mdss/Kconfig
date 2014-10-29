@@ -89,3 +89,7 @@ config MHL_MONITOR_WORKAROUND
 config LCD_KCAL
 	bool "Enable sysfs for LCD KCAL"	
 	default n
+
+config BACKLIGHT_DIMMER
+	bool "Enable sysfs for BACKLIGHT DIMMER"
+	default n
