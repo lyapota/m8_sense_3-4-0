@@ -143,6 +143,19 @@ static ssize_t sensor_vendor_show(struct device *dev,
 
 static DEVICE_ATTR(sensor, 0444, sensor_vendor_show, NULL);
 
+static ssize_t otp_info_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+
+	sprintf(buf, "%02X%02X%02X%02X%02X\n", otp[0],otp[1],otp[2],otp[3],otp[4]);
+	ret = strlen(buf) + 1;
+
+	return ret;
+}
+
+static DEVICE_ATTR(otp_info, 0444, otp_info_show, NULL);
+
 static struct kobject *android_ov13850_800m;
 
 static int ov13850_800m_sysfs_init(void)
@@ -162,6 +175,12 @@ static int ov13850_800m_sysfs_init(void)
 		pr_info("ov13850_800m_sysfs_init: sysfs_create_file " \
 		"failed\n");
 		kobject_del(android_ov13850_800m);
+	}
+
+	ret = sysfs_create_file(android_ov13850_800m, &dev_attr_otp_info.attr);
+	if (ret) {
+		pr_info("ov13850_800m_sysfs_init: sysfs_create_file " \
+		"failed\n");
 	}
 
 	return 0 ;

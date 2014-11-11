@@ -138,6 +138,19 @@ static ssize_t sensor_vendor_show(struct device *dev,
 
 static DEVICE_ATTR(sensor, 0444, sensor_vendor_show, NULL);
 
+static ssize_t otp_info_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+
+	sprintf(buf, "%02X%02X%02X%02X%02X\n", otp[0],otp[1],otp[2],otp[3],otp[4]);
+	ret = strlen(buf) + 1;
+
+	return ret;
+}
+
+static DEVICE_ATTR(otp_info, 0444, otp_info_show, NULL);
+
 static struct kobject *android_imx214_800m_fov87;
 
 static int imx214_800m_fov87_sysfs_init(void)
@@ -157,6 +170,12 @@ static int imx214_800m_fov87_sysfs_init(void)
 		pr_info("imx214_800m_fov87_sysfs_init: sysfs_create_file " \
 		"failed\n");
 		kobject_del(android_imx214_800m_fov87);
+	}
+
+	ret = sysfs_create_file(android_imx214_800m_fov87, &dev_attr_otp_info.attr);
+	if (ret) {
+		pr_info("imx214_800m_fov87_sysfs_init: sysfs_create_file " \
+		"failed\n");
 	}
 
 	return 0 ;
@@ -204,7 +223,7 @@ int32_t imx214_800m_fov87_read_otp_memory(uint8_t *otpPtr, struct msm_sensor_ctr
 static void imx214_800m_fov87_parse_otp_mem(struct msm_sensor_ctrl_t *s_ctrl){
  int32_t i = 0, j = 0;
 
-  for(i=3; i>=0; i--) { 
+  for(i=2; i>=0; i--) { 
 		if (otp_mem[i*16] == 0)  
 			continue;
 
@@ -344,6 +363,16 @@ static void __exit imx214_800m_fov87_exit_module(void)
 	return;
 }
 
+#if defined(CONFIG_MACH_EYE_UL) || defined(CONFIG_MACH_EYE_WHL) || defined(CONFIG_MACH_EYE_WL)
+static int imx214_800m_fov87_match_otp_info(void)
+{
+	if (otp[3] == 0x31)
+		return 0;
+	pr_info("%s:otp[3] = %02X, expected 0x31\n", __func__, otp[3]);
+	return -1;
+}
+#endif
+
 int32_t imx214_800m_fov87_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	int32_t rc = 0;
@@ -361,6 +390,9 @@ int32_t imx214_800m_fov87_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 			} else
 				first = 1;
 	    }
+#if defined(CONFIG_MACH_EYE_UL) || defined(CONFIG_MACH_EYE_WHL) || defined(CONFIG_MACH_EYE_WL)
+		rc = imx214_800m_fov87_match_otp_info();
+#endif
 	}
 	return rc;
 }

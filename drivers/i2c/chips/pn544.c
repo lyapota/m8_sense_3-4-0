@@ -164,6 +164,12 @@ static irqreturn_t pn544_dev_irq_handler(int irq, void *dev_id)
 	struct pn544_dev *pn544_dev = dev_id;
 	static unsigned long orig_jiffies = 0;
 
+#ifdef CONFIG_SENSORS_NFC_IRQ_WORKAROUND
+	if (gpio_get_value(pn544_dev->irq_gpio) == 0) {
+		I("%s: irq_workaround\n", __func__);
+		return IRQ_HANDLED;
+	}
+#endif
 	pn544_disable_irq(pn544_dev);
 
 	

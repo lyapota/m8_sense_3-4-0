@@ -3109,6 +3109,12 @@ config MACH_M8
         help
           Support for HTC MSM8974 M8
 
+config PROJECT_NAME
+        string "Project Name"
+        default ""
+        help
+          Support for Project Name
+
 config MACH_M8_DTB
         depends on ARCH_MSM8974
         bool "MSM8974 M8"

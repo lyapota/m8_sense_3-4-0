@@ -328,9 +328,9 @@ static int lm3643_i2c_command(uint8_t address, uint8_t data)
 
 static int flashlight_turn_off(void)
 {
-	if (vte_in_use == 1)
-		return 0;
 	FLT_INFO_LOG("%s\n", __func__);
+	if (vte_in_use == 1 || gpio_get_value(this_lm3643->hwen) == 0)
+		return 0;
 	gpio_set_value_cansleep(this_lm3643->strobe, 0);
 	lm3643_i2c_command(0x01, 0x08);
 	gpio_set_value_cansleep(this_lm3643->hwen, 0);

@@ -136,6 +136,12 @@ config SENSORS_NFC_PN544
 	help
 	  PN544 NFC Driver implemented.
 
+config SENSORS_NFC_IRQ_WORKAROUND
+	tristate "PN544 NFC sensor IRQ workaround"
+	depends on SENSORS_NFC_PN544=y
+	help
+	PN547 NFC Driver IRQ workaround.
+
 config INPUT_CAPELLA_CM3628
 	tristate "CM3628 proximity and light sensor"
 	help

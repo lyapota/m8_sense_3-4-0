@@ -36,6 +36,7 @@
 #include <mach/rpm-regulator-smd.h>
 #include <linux/regulator/consumer.h>
 #include <linux/msm_thermal_ioctl.h>
+#include <mach/devices_dtb.h>
 
 #define MAX_CURRENT_UA 1000000
 #define MAX_RAILS 5
@@ -2807,6 +2808,14 @@ static int __devinit msm_thermal_dev_probe(struct platform_device *pdev)
 
 	key = "qcom,freq-control-mask";
 	ret = of_property_read_u32(node, key, &data.bootup_freq_control_mask);
+
+#if defined(CONFIG_MACH_EYE_UL)
+	if(get_kernel_flag() & KERNEL_FLAG_KEEP_CHARG_ON) {
+		data.poll_ms = 100;
+		data.bootup_freq_step = 4;
+		printk("[Thermal-Driver]Polling time changed to:%dms, bootup_freq_step changed to:%d \n", data.poll_ms, data.bootup_freq_step);
+	}
+#endif
 
 	ret = probe_cc(node, &data, pdev);
 

@@ -1302,6 +1302,8 @@ int32_t msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 			{
 				gpio_429_index ++;
 			}
+			if ( data->gpio_conf->gpio_num_info->gpio_num[power_setting->seq_val] == 430)
+				gpio_430_index ++;
 			
 			gpio_set_value_cansleep(
 				data->gpio_conf->gpio_num_info->gpio_num
@@ -1453,6 +1455,13 @@ power_up_failed:
 					break;
 				}
 			}
+			if (data->gpio_conf->gpio_num_info->gpio_num[power_setting->seq_val] == 430)
+			{
+				gpio_430_index --;
+				if (gpio_430_index > 0)
+					break;
+				gpio_430_index = 0;
+			}
 			
 			if(power_setting->config_val == GPIO_OUT_HIGH)
 				gpio_set_value_cansleep(
@@ -1589,6 +1598,13 @@ int32_t msm_sensor_power_down(struct msm_sensor_ctrl_t *s_ctrl)
 				{
 					break;
 				}
+			}
+			if (data->gpio_conf->gpio_num_info->gpio_num[power_setting->seq_val] == 430)
+			{
+				gpio_430_index --;
+				if (gpio_430_index > 0)
+					break;
+				gpio_430_index = 0;
 			}
 			
 			if(power_setting->config_val == GPIO_OUT_HIGH)
