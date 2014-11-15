@@ -5,10 +5,6 @@
 # Rewritten to use lists instead of if-statements.
 #
 
-obj-$(CONFIG_CPUQUIET_FRAMEWORK)+= cpuquiet/
-obj-$(CONFIG_INTELLI_PLUG)	+= cpuintelli/
-obj-$(CONFIG_MAKO_HOTPLUG)	+= cpumako/
-
 # GPIO must come after pinctrl as gpios may need to mux pins etc
 obj-y				+= pinctrl/
 obj-y				+= gpio/
@@ -154,3 +150,7 @@ obj-$(CONFIG_SENSORS)		+= sensors/
 
 # htc stability files
 obj-y += htc_debug/stability/
+
+obj-$(CONFIG_CPUQUIET_FRAMEWORK)+= cpuquiet/
+obj-$(CONFIG_INTELLI_PLUG)	+= cpuintelli/
+obj-$(CONFIG_MAKO_HOTPLUG)	+= cpumako/

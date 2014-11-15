@@ -367,6 +367,32 @@ static int kgsl_page_alloc_vmflags(struct kgsl_memdesc *memdesc)
 	return VM_RESERVED | VM_DONTEXPAND;
 }
 
+static void kgsl_dump_memdesc(struct kgsl_memdesc *memdesc, int restore)
+{
+	int i, sglen = memdesc->sglen;
+	struct scatterlist *sg, *sg2;
+
+	pr_warn("%s: memdesc=%p {size=%u sglen=%d/%d, ts=%lu, created since %d msec}, restore=%d\n",
+		__func__, memdesc, memdesc->size, memdesc->sglen, memdesc->sglen_alloc,
+		memdesc->sg_create, jiffies_to_msecs(jiffies - memdesc->sg_create), restore);
+
+	if (!memdesc->sg_backup) {
+		pr_warn("%s: No backup sgtable\n", __func__);
+		return;
+	}
+	for (i=0; i < sglen; i++) {
+		sg = &memdesc->sg[i];
+		sg2 = &memdesc->sg_backup[i];
+		pr_warn("  [%3d/%3d] sg={0x%lx, %u, %u, %u}, sg2={0x%lx, %u, %u, %u}\n", i, sglen,
+			 sg->page_link, sg->offset, sg->length, sg->dma_address,
+			 sg2->page_link, sg2->offset, sg2->length, sg2->dma_address);
+	}
+	if (restore)
+		memcpy(memdesc->sg, memdesc->sg_backup, sglen * sizeof(struct scatterlist));
+
+	return;
+}
+
 static void kgsl_page_alloc_free(struct kgsl_memdesc *memdesc)
 {
 	int i = 0, j, size;
@@ -382,29 +408,18 @@ static void kgsl_page_alloc_free(struct kgsl_memdesc *memdesc)
 	}
 	if (memdesc->sg)
 		for_each_sg(memdesc->sg, sg, sglen, i) {
-			if (sg->length == 0)
-				break;
-			if (memdesc->sg_backup && sg->page_link != memdesc->sg_backup[i].page_link) {
-				
-				struct scatterlist *sg2 = &memdesc->sg_backup[i];
+			if (!IS_ALIGNED(sg->length, PAGE_SIZE) || sg->offset || sg->dma_address) {
 
 				pr_warn("%s: memdesc=%p {size=%u sglen=%d/%d, ts=%lu, created since %d msec}\n",
 					__func__, memdesc, memdesc->size, memdesc->sglen, memdesc->sglen_alloc,
 					memdesc->sg_create, jiffies_to_msecs(jiffies - memdesc->sg_create));
-				pr_warn("%s: sg=%p [%d/%d] {page=0x%lx, len=%u, off=%u, dma=%u}\n",
-					__func__, sg, i, sglen, sg->page_link, sg->length, sg->offset, sg->dma_address);
-				pr_warn("%s: sg_backup=%p [%d/%d] {page=0x%lx, len=%u, off=%u, dma=%u}\n",
-					__func__, sg2, i, sglen, sg2->page_link, sg2->length, sg2->offset, sg2->dma_address);
-				continue;
-			} else if (!IS_ALIGNED(sg->length, PAGE_SIZE) || sg->offset || sg->dma_address) {
+				pr_warn("%s: sg=%p [%d/%d] {page=0x%lx, off=%u, len=%u, dma=%u}\n",
+					__func__, sg, i, sglen, sg->page_link, sg->offset, sg->length, sg->dma_address);
 				
-				pr_warn("%s: memdesc=%p {size=%u sglen=%d/%d, ts=%lu, created since %d msec}\n",
-					__func__, memdesc, memdesc->size, memdesc->sglen, memdesc->sglen_alloc,
-					memdesc->sg_create, jiffies_to_msecs(jiffies - memdesc->sg_create));
-				pr_warn("%s: sg=%p [%d/%d] {page=0x%lx, len=%u, off=%u, dma=%u}\n",
-					__func__, sg, i, sglen, sg->page_link, sg->length, sg->offset, sg->dma_address);
-				continue;
+				kgsl_dump_memdesc(memdesc, true);
 			}
+			if (sg->length == 0)
+				break;
 			size = 1 << get_order(sg->length);
 			for (j = 0; j < size; j++)
 				ClearPageKgsl(nth_page(sg_page(sg), j));

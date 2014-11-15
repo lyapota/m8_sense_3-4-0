@@ -280,7 +280,7 @@ static int imx214_read_fuseid(struct sensorb_cfg_data *cdata,
                 break;
             }
         }
-        
+
   for(i=0; i<5; i++)
       s_ctrl->sensordata->sensor_info->OTP_INFO[i] = otp[3+i];
 
