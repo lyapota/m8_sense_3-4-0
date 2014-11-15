@@ -588,56 +588,6 @@ static int taiko_update_uhqa_mode(struct snd_soc_codec *codec, int path)
 	return ret;
 }
 
-void wcd9xxx_enable_high_perf_mode(struct snd_soc_codec *codec,
-				struct wcd9xxx_clsh_cdc_data *clsh_d,
-				u8 req_state, bool req_type)
-{
-	dev_dbg(codec->dev, "%s: users fclk8 %d, fclk5 %d", __func__,
-			clsh_d->ncp_users[NCP_FCLK_LEVEL_8],
-			clsh_d->ncp_users[NCP_FCLK_LEVEL_5]);
-
-	if (req_type == WCD9XXX_CLSH_REQ_ENABLE) {
-		clsh_d->ncp_users[NCP_FCLK_LEVEL_8]++;
-		snd_soc_write(codec, WCD9XXX_A_RX_HPH_BIAS_PA,
-					WCD9XXX_A_RX_HPH_BIAS_PA__POR);
-		snd_soc_write(codec, WCD9XXX_A_RX_HPH_L_PA_CTL, 0x48);
-		snd_soc_write(codec, WCD9XXX_A_RX_HPH_R_PA_CTL, 0x48);
-		snd_soc_update_bits(codec, WCD9XXX_A_RX_HPH_CHOP_CTL,
-					0x20, 0x00);
-		wcd9xxx_chargepump_request(codec, true);
-		wcd9xxx_enable_anc_delay(codec, true);
-		wcd9xxx_enable_buck(codec, clsh_d, false);
-		if (clsh_d->ncp_users[NCP_FCLK_LEVEL_8] > 0)
-			snd_soc_update_bits(codec, WCD9XXX_A_NCP_STATIC,
-						0x0F, 0x08);
-		snd_soc_update_bits(codec, WCD9XXX_A_NCP_STATIC, 0x30, 0x30);
-
-		/* Enable NCP and wait until settles down */
-		if (snd_soc_update_bits(codec, WCD9XXX_A_NCP_EN, 0x01, 0x01))
-			usleep_range(NCP_SETTLE_TIME_US, NCP_SETTLE_TIME_US+10);
-	} else {
-		snd_soc_update_bits(codec, WCD9XXX_A_RX_HPH_CHOP_CTL,
-					0x20, 0x20);
-		snd_soc_write(codec, WCD9XXX_A_RX_HPH_L_PA_CTL,
-					WCD9XXX_A_RX_HPH_L_PA_CTL__POR);
-		snd_soc_write(codec, WCD9XXX_A_RX_HPH_R_PA_CTL,
-					WCD9XXX_A_RX_HPH_R_PA_CTL__POR);
-		snd_soc_write(codec, WCD9XXX_A_RX_HPH_BIAS_PA, 0x55);
-		wcd9xxx_enable_buck(codec, clsh_d, true);
-		wcd9xxx_chargepump_request(codec, false);
-		wcd9xxx_enable_anc_delay(codec, false);
-		clsh_d->ncp_users[NCP_FCLK_LEVEL_8]--;
-		if (clsh_d->ncp_users[NCP_FCLK_LEVEL_8] == 0 &&
-		    clsh_d->ncp_users[NCP_FCLK_LEVEL_5] == 0)
-			snd_soc_update_bits(codec, WCD9XXX_A_NCP_EN,
-						0x01, 0x00);
-		else if (clsh_d->ncp_users[NCP_FCLK_LEVEL_8] == 0)
-			snd_soc_update_bits(codec, WCD9XXX_A_NCP_STATIC,
-						0x0F, 0x05);
-	}
-	dev_dbg(codec->dev, "%s: leave\n", __func__);
-}
-
 static int taiko_control_mic_detect_reg(void *private_data, int on)
 {
 	struct snd_soc_codec *codec = (struct snd_soc_codec *)private_data;
@@ -3567,7 +3517,7 @@ static int taiko_hphl_dac_event(struct snd_soc_dapm_widget *w,
 						 WCD9XXX_CLSH_EVENT_PRE_DAC);
 		} else {
 			wcd9xxx_enable_high_perf_mode(codec, &taiko_p->clsh_d,
-						WCD9XXX_CLSAB_STATE_EAR,
+						WCD9XXX_CLSH_STATE_HPHL,
 						WCD9XXX_CLSH_REQ_ENABLE);
 		}
 		ret = wcd9xxx_mbhc_get_impedance(&taiko_p->mbhc,
@@ -4670,19 +4620,6 @@ static int taiko_volatile(struct snd_soc_codec *ssc, unsigned int reg)
 extern int snd_hax_reg_access(unsigned int);
 extern unsigned int snd_hax_cache_read(unsigned int);
 extern void snd_hax_cache_write(unsigned int, unsigned int);
-
-int wcd9xxx_reg_read_safe(struct wcd9xxx *wcd9xxx, unsigned short reg)
-{
-        u8 val;
-        int ret;
-
-        ret = wcd9xxx_read(wcd9xxx, reg, 1, &val, false);
-
-        if (ret < 0)
-                return ret;
-        else
-                return val;
-}
 #endif
 
 #ifndef CONFIG_SOUND_CONTROL_HAX_3_GPL 
