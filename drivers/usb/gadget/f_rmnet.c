@@ -28,6 +28,9 @@
 
 #define ACM_CTRL_DTR	(1 << 0)
 
+/* TODO: use separate structures for data and
+ * control paths
+ */
 struct f_rmnet {
 	struct grmnet			port;
 	int				ifc_id;
@@ -38,11 +41,11 @@ struct f_rmnet {
 
 	spinlock_t			lock;
 
-	
+	/* usb eps*/
 	struct usb_ep			*notify;
 	struct usb_request		*notify_req;
 
-	
+	/* control info */
 	struct list_head		cpkt_resp_q;
 	unsigned long			notify_count;
 	unsigned long			cpkts_len;
@@ -74,9 +77,10 @@ static struct usb_interface_descriptor rmnet_interface_desc = {
 	.bInterfaceClass =	USB_CLASS_VENDOR_SPEC,
 	.bInterfaceSubClass =	USB_CLASS_VENDOR_SPEC,
 	.bInterfaceProtocol =	USB_CLASS_VENDOR_SPEC,
-	
+	/* .iInterface = DYNAMIC */
 };
 
+/* Full speed support */
 static struct usb_endpoint_descriptor rmnet_fs_notify_desc = {
 	.bLength =		USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType =	USB_DT_ENDPOINT,
@@ -110,6 +114,7 @@ static struct usb_descriptor_header *rmnet_fs_function[] = {
 	NULL,
 };
 
+/* High speed support */
 static struct usb_endpoint_descriptor rmnet_hs_notify_desc  = {
 	.bLength =		USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType =	USB_DT_ENDPOINT,
@@ -143,6 +148,7 @@ static struct usb_descriptor_header *rmnet_hs_function[] = {
 	NULL,
 };
 
+/* Super speed support */
 static struct usb_endpoint_descriptor rmnet_ss_notify_desc  = {
 	.bLength =		USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType =	USB_DT_ENDPOINT,
@@ -156,9 +162,9 @@ static struct usb_ss_ep_comp_descriptor rmnet_ss_notify_comp_desc = {
 	.bLength =		sizeof rmnet_ss_notify_comp_desc,
 	.bDescriptorType =	USB_DT_SS_ENDPOINT_COMP,
 
-	
-	
-	
+	/* the following 3 values can be tweaked if necessary */
+	/* .bMaxBurst =		0, */
+	/* .bmAttributes =	0, */
 	.wBytesPerInterval =	cpu_to_le16(RMNET_MAX_NOTIFY_SIZE),
 };
 
@@ -174,9 +180,9 @@ static struct usb_ss_ep_comp_descriptor rmnet_ss_in_comp_desc = {
 	.bLength =		sizeof rmnet_ss_in_comp_desc,
 	.bDescriptorType =	USB_DT_SS_ENDPOINT_COMP,
 
-	
-	
-	
+	/* the following 2 values can be tweaked if necessary */
+	/* .bMaxBurst =		0, */
+	/* .bmAttributes =	0, */
 };
 
 static struct usb_endpoint_descriptor rmnet_ss_out_desc = {
@@ -191,9 +197,9 @@ static struct usb_ss_ep_comp_descriptor rmnet_ss_out_comp_desc = {
 	.bLength =		sizeof rmnet_ss_out_comp_desc,
 	.bDescriptorType =	USB_DT_SS_ENDPOINT_COMP,
 
-	
-	
-	
+	/* the following 2 values can be tweaked if necessary */
+	/* .bMaxBurst =		0, */
+	/* .bmAttributes =	0, */
 };
 
 static struct usb_descriptor_header *rmnet_ss_function[] = {
@@ -207,14 +213,15 @@ static struct usb_descriptor_header *rmnet_ss_function[] = {
 	NULL,
 };
 
+/* String descriptors */
 
 static struct usb_string rmnet_string_defs[] = {
 	[0].s = "RmNet",
-	{  } 
+	{  } /* end of list */
 };
 
 static struct usb_gadget_strings rmnet_string_table = {
-	.language =		0x0409,	
+	.language =		0x0409,	/* en-us */
 	.strings =		rmnet_string_defs,
 };
 
@@ -225,6 +232,7 @@ static struct usb_gadget_strings *rmnet_strings[] = {
 
 static void frmnet_ctrl_response_available(struct f_rmnet *dev);
 
+/* ------- misc functions --------------------*/
 
 static inline struct f_rmnet *func_to_rmnet(struct usb_function *f)
 {
@@ -286,6 +294,7 @@ static void rmnet_free_ctrl_pkt(struct rmnet_ctrl_pkt *pkt)
 	kfree(pkt);
 }
 
+/* -------------------------------------------*/
 
 static int rmnet_gport_setup(void)
 {
@@ -722,6 +731,8 @@ frmnet_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 
 	atomic_set(&dev->online, 1);
 
+	/* In case notifications were aborted, but there are pending control
+	   packets in the response queue, re-add the notifications */
 	list_for_each(cpkt, &dev->cpkt_resp_q)
 		frmnet_ctrl_response_available(dev);
 
@@ -907,14 +918,14 @@ static void frmnet_notify_complete(struct usb_ep *ep, struct usb_request *req)
 	switch (status) {
 	case -ECONNRESET:
 	case -ESHUTDOWN:
-		
+		/* connection gone */
 		spin_lock_irqsave(&dev->lock, flags);
 		dev->notify_count = 0;
 		spin_unlock_irqrestore(&dev->lock, flags);
 		break;
 	default:
 		pr_err("rmnet notify ep error %d\n", status);
-		
+		/* FALLTHROUGH */
 	case 0:
 		if (!atomic_read(&dev->ctrl_online))
 			break;
@@ -1035,7 +1046,7 @@ invalid:
 			w_value, w_index, w_length);
 	}
 
-	
+	/* respond with data transfer or status phase? */
 	if (ret >= 0) {
 		VDBG(cdev, "rmnet req%02x.%02x v%04x i%04x l%d\n",
 			ctrl->bRequestType, ctrl->bRequest,
@@ -1118,7 +1129,7 @@ static int frmnet_bind(struct usb_configuration *c, struct usb_function *f)
 		rmnet_hs_notify_desc.bEndpointAddress =
 				rmnet_fs_notify_desc.bEndpointAddress;
 
-		
+		/* copy descriptors, and track endpoint copies */
 		f->hs_descriptors = usb_copy_descriptors(rmnet_hs_function);
 
 		if (!f->hs_descriptors)
@@ -1133,7 +1144,7 @@ static int frmnet_bind(struct usb_configuration *c, struct usb_function *f)
 		rmnet_ss_notify_desc.bEndpointAddress =
 				rmnet_fs_notify_desc.bEndpointAddress;
 
-		
+		/* copy descriptors, and track endpoint copies */
 		f->ss_descriptors = usb_copy_descriptors(rmnet_ss_function);
 
 		if (!f->ss_descriptors)

@@ -24,6 +24,7 @@
 #include <linux/err.h>
 
 
+/*DRIVER_DIAG_FUNCTION*/
 #define DIAG_ERR(fmt, args...) \
 	printk(KERN_ERR "[USBDIAG:ERR] " fmt, ## args)
 #define DIAG_WARNING(fmt, args...) \
@@ -33,6 +34,7 @@
 #define DIAG_DBUG(fmt, args...) \
 	printk(KERN_DEBUG "[USBDIAG] " fmt, ## args)
 
+/*DRIVER_DIAGFWD_FUNCTION*/
 #define DIAGFWD_ERR(fmt, args...) \
 	printk(KERN_ERR "[USBDIAG:ERR] " fmt, ## args)
 #define DIAGFWD_WARNING(fmt, args...) \
@@ -42,6 +44,7 @@
 #define DIAGFWD_DBUG(fmt, args...) \
 	printk(KERN_DEBUG "[USBDIAG] " fmt, ## args)
 
+/* DRIVER_SDLOG_FUNCTION*/
 #define SDLOG_ERR(fmt, args...) \
 	printk(KERN_ERR "[USBDIAG:ERR] " fmt, ## args)
 #define SDLOG_WARNING(fmt, args...) \
@@ -51,6 +54,7 @@
 #define SDLOG_DBUG(fmt, args...) \
 	printk(KERN_DEBUG "[USBDIAG] " fmt, ## args)
 
+/* #define SDQXDM_DEBUG */
 #define DIAG_XPST 1
 
 #define DIAG_LEGACY		"diag"
@@ -110,10 +114,10 @@ int usb_diag_write(struct usb_diag_ch *ch, struct diag_request *d_req)
 {
 	return -ENODEV;
 }
-#endif 
+#endif /* CONFIG_USB_G_ANDROID */
 int checkcmd_modem_epst(unsigned char *buf);
 int modem_to_userspace(void *buf, int r, int cmdtype, int is9k);
 extern int sdio_diag_initialized;
 extern int smd_diag_initialized;
 
-#endif 
+#endif /* _DRIVERS_USB_DIAG_H_ */

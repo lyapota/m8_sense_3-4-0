@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2012, 2014 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -454,8 +454,8 @@ static void krait_pmu_enable_event(struct hw_perf_event *hwc, int idx, int cpu)
 	/* Disable counter */
 	armv7_pmnc_disable_counter(idx);
 
-		val = hwc->config_base;
-		val &= KRAIT_EVENT_MASK;
+	val = hwc->config_base;
+	val &= KRAIT_EVENT_MASK;
 
 	/* set event for ARM-architected events, and filter for CC */
 	if ((val < 0x40) || (idx == ARMV7_IDX_CYCLE_COUNTER)) {
