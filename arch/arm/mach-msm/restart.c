@@ -227,12 +227,7 @@ static void msm_flush_console(void)
 	unsigned long flags;
 
 	printk("\n");
-
-	if(board_rom_type())
-		printk(KERN_EMERG "[K] Restarting %s\n", linux_banner_stockui);
-	else
 		printk(KERN_EMERG "[K] Restarting %s\n", linux_banner);
-
 	if (console_trylock()) {
 		console_unlock();
 		return;

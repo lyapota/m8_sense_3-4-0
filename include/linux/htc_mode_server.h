@@ -237,6 +237,11 @@ enum {
     HSML_12_PIXEL_FORMAT_RGB343,
 };
 
+enum {
+    HSML_12_CAP_ENDIAN = 0,
+    HSML_12_CAP_FB_UPDATE,
+};
+
 struct get_parameters {
 	u32 capabilities;
 	u16 width;

@@ -342,6 +342,8 @@ int mmc_sd_switch_hs(struct mmc_card *card)
 	int err;
 	u8 *status;
 
+	card->sw_caps.uhs_max_dtr = 0;
+
 	if (card->scr.sda_vsn < SCR_SPEC_VER_1)
 		return 0;
 

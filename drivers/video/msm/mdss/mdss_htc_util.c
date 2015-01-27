@@ -673,7 +673,7 @@ void htc_set_pp_pcc(struct mdss_mdp_ctl *ctl)
 	if (req_val == htc_attr_status[PP_PCC_INDEX].cur_value)
 		return;
 
-	if ((req_val >= dspp_pcc_mode_cnt) || (req_val < 0)) {
+	if (req_val >= dspp_pcc_mode_cnt) {
 		pr_err("%s:req_val = %d was invalid\n", __func__, req_val);
 		return;
 	}

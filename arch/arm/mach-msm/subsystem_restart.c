@@ -983,7 +983,7 @@ static ssize_t subsys_debugfs_read(struct file *filp, char __user *ubuf,
 	char buf[40];
 	struct subsys_device *subsys = filp->private_data;
 
-	r = snprintf(buf, sizeof(buf), "%d\n", subsys->count);
+	r = snprintf(buf, sizeof(buf)-1, "%d\n", subsys->count);
 	return simple_read_from_buffer(ubuf, cnt, ppos, buf, r);
 }
 
@@ -1119,7 +1119,7 @@ static int subsys_misc_device_add(struct subsys_device *subsys_dev)
 	memset(subsys_dev->miscdevice_name, 0,
 			ARRAY_SIZE(subsys_dev->miscdevice_name));
 	snprintf(subsys_dev->miscdevice_name,
-			 ARRAY_SIZE(subsys_dev->miscdevice_name), "subsys_%s",
+			 sizeof(subsys_dev->miscdevice_name) - 1, "subsys_%s",
 			 subsys_dev->desc->name);
 
 	subsys_dev->misc_dev.minor = MISC_DYNAMIC_MINOR;
@@ -1288,7 +1288,7 @@ struct subsys_device *subsys_register(struct subsys_desc *desc)
 	memset(subsys->restart_reason, 0, sizeof(subsys->restart_reason));
 #endif
 
-	snprintf(subsys->wlname, sizeof(subsys->wlname), "ssr(%s)", desc->name);
+	snprintf(subsys->wlname, sizeof(subsys->wlname)-1, "ssr(%s)", desc->name);
 	wake_lock_init(&subsys->wake_lock, WAKE_LOCK_SUSPEND, subsys->wlname);
 	INIT_WORK(&subsys->work, subsystem_restart_wq_func);
 	spin_lock_init(&subsys->track.s_lock);

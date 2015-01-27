@@ -281,7 +281,9 @@ static int ngd_xfer_msg(struct slim_controller *ctrl, struct slim_msg_txn *txn)
 	u8 la = txn->la;
 	u8 txn_mt;
 	u16 txn_mc = txn->mc;
+
 	u8 wbuf[SLIM_MSGQ_BUF_LEN] = {0}; 
+
 	bool report_sat = false;
 
 	if (txn->mc == SLIM_USR_MC_REPORT_SATELLITE &&
@@ -343,7 +345,9 @@ static int ngd_xfer_msg(struct slim_controller *ctrl, struct slim_msg_txn *txn)
 	mutex_lock(&dev->tx_lock);
 
 	if (report_sat == false && dev->state != MSM_CTRL_AWAKE) {
-		dev_err(dev->dev, "controller not ready");
+
+		SLIM_ERR(dev, "controller not ready\n");
+
 		mutex_unlock(&dev->tx_lock);
 		pm_runtime_set_suspended(dev->dev);
 		msm_slim_put_ctrl(dev);
@@ -454,6 +458,8 @@ static int ngd_xfer_msg(struct slim_controller *ctrl, struct slim_msg_txn *txn)
 					(wbuf[1] + dev->port_b), dev->ver));
 			mutex_unlock(&dev->tx_lock);
 			msm_slim_put_ctrl(dev);
+			if (txn->wbuf == wbuf)
+					txn->wbuf = NULL;
 			return 0;
 		}
 		if (dev->err) {
@@ -667,6 +673,8 @@ static int ngd_allocbw(struct slim_device *sb, int *subfrmc, int *clkgear)
 				return -ENXIO;
 			}
 		}
+		if (txn.len >= SLIM_MSGQ_BUF_LEN - 1)
+			return -EINVAL;
 		num_chan++;
 		wbuf[txn.len++] = slc->chan;
 		SLIM_INFO(dev, "slim activate chan:%d, laddr: 0x%x\n",
@@ -988,6 +996,7 @@ static int ngd_slim_power_up(struct msm_slim_ctrl *dev, bool mdm_restart)
 	timeout = wait_for_completion_timeout(&dev->reconf, HZ);
 	if (!timeout) {
 		SLIM_ERR(dev, "Failed to receive master capability\n");
+
 #ifdef CONFIG_HTC_DEBUG_DSP
 		pr_info("%s:trigger ramdump to keep status\n",__func__);
 		BUG();
@@ -1097,6 +1106,14 @@ static int ngd_notify_slaves(void *data)
 	struct list_head *pos, *next;
 
 	int ret, i = 0;
+	ret = qmi_svc_event_notifier_register(SLIMBUS_QMI_SVC_ID,
+				SLIMBUS_QMI_SVC_V1,
+				SLIMBUS_QMI_INS_ID, &dev->qmi.nb);
+	if (ret) {
+		pr_err("Slimbus QMI service registration failed:%d", ret);
+		return ret;
+	}
+
 	while (!kthread_should_stop()) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		ret = wait_for_completion_timeout(&dev->qmi.slave_notify,
@@ -1104,6 +1121,7 @@ static int ngd_notify_slaves(void *data)
 		if (!ret) {
 			dev_dbg(dev->dev, "slave thread wait err:%d", ret);
 			continue;
+
 		}
 		
 		if (!i) {
@@ -1203,6 +1221,7 @@ static int __devinit ngd_slim_probe(struct platform_device *pdev)
 	const char		*ext_modem_id = NULL;
 
 	pr_info("%s ++\n",__func__);
+
 	slim_mem = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 						"slimbus_physical");
 	if (!slim_mem) {
@@ -1239,7 +1258,7 @@ static int __devinit ngd_slim_probe(struct platform_device *pdev)
 
 	
 	dev->ipc_slimbus_log = ipc_log_context_create(IPC_SLIMBUS_LOG_PAGES,
-						dev_name(dev->dev));
+						dev_name(dev->dev), 0);
 	if (!dev->ipc_slimbus_log)
 		dev_err(&pdev->dev, "error creating ipc_logging context\n");
 	else {
@@ -1368,14 +1387,6 @@ static int __devinit ngd_slim_probe(struct platform_device *pdev)
 	INIT_WORK(&dev->qmi.ssr_up, ngd_adsp_up);
 	dev->qmi.nb.notifier_call = ngd_qmi_available;
 	pm_runtime_get_noresume(dev->dev);
-	ret = qmi_svc_event_notifier_register(SLIMBUS_QMI_SVC_ID,
-				SLIMBUS_QMI_SVC_V1,
-				SLIMBUS_QMI_INS_ID, &dev->qmi.nb);
-	if (ret) {
-		pr_err("Slimbus QMI service registration failed:%d", ret);
-		goto qmi_register_failed;
-	}
-
 
 	
 	dev->rx_msgq_thread = kthread_run(ngd_slim_rx_msgq_thread, dev,
@@ -1394,17 +1405,15 @@ static int __devinit ngd_slim_probe(struct platform_device *pdev)
 		dev_err(dev->dev, "Failed to start notifier thread:%d\n", ret);
 		goto err_notify_thread_create_failed;
 	}
+
 	pr_info("%s --\n",__func__);
+
 	SLIM_INFO(dev, "NGD SB controller is up!\n");
 	return 0;
 
 err_notify_thread_create_failed:
 	kthread_stop(dev->rx_msgq_thread);
 err_rx_thread_create_failed:
-	qmi_svc_event_notifier_unregister(SLIMBUS_QMI_SVC_ID,
-				SLIMBUS_QMI_SVC_V1,
-				SLIMBUS_QMI_INS_ID, &dev->qmi.nb);
-qmi_register_failed:
 	free_irq(dev->irq, dev);
 err_request_irq_failed:
 	slim_del_controller(&dev->ctrl);

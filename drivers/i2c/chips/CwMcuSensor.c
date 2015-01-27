@@ -1071,6 +1071,10 @@ static int CWMCU_set_sensor_kvalue(struct CWMCU_data *sensor)
         }
 
 	if(((sensor->als_kvalue & (0x6D << 24)) == (0x6D << 24)) && ((sensor->als_kvalue & (0xA5 << 16)) == (0xA5 << 16))){
+		u8 data[4] = {0};
+		u8 cmp_data[4] = {0};
+		int i, j;
+
 		CWMCU_i2c_write(sensor, CW_I2C_REG_SENSORS_CALIBRATOR_SET_DATA_LIGHT,&ALS_goldl,1);
 		CWMCU_i2c_write(sensor, CW_I2C_REG_SENSORS_CALIBRATOR_SET_DATA_LIGHT,&ALS_goldh,1);
 		ALS_datal = (sensor->als_kvalue)&0xFF;
@@ -1078,7 +1082,65 @@ static int CWMCU_set_sensor_kvalue(struct CWMCU_data *sensor)
 		ALS_datah = (sensor->als_kvalue >>  8)& 0xFF;
 		CWMCU_i2c_write(sensor, CW_I2C_REG_SENSORS_CALIBRATOR_SET_DATA_LIGHT,&ALS_datah,1);
 		sensor->ls_calibrated = 1;
-		D("Set light-sensor kvalue is %x %x, gold = (0x%x, 0x%x)\n", ALS_datah,ALS_datal, ALS_goldh, ALS_goldl);
+		I("Set light-sensor kvalue is (0x%x, 0x%x), gold = (0x%x, 0x%x)"
+		  "\n", ALS_datah, ALS_datal, ALS_goldh, ALS_goldl);
+
+		cmp_data[0] = ALS_goldl;
+		cmp_data[1] = ALS_goldh;
+		cmp_data[2] = ALS_datal;
+		cmp_data[3] = ALS_datah;
+
+		if (CWMCU_Get_Calibrator(CW_LIGHT, data) >= 0) {
+			I("%s: Re-read lightsensor kvalues = (0x%x, 0x%x,"
+			  " 0x%x, 0x%x)\n", __func__, data[0], data[1],
+			  data[2], data[3]);
+			for (i = 0; i < 4; i++) {
+				if (data[i] != cmp_data[i]) {
+					I(
+					  "%s: Found diff, i = %d, data = 0x%x,"
+					  " cmp_data = 0x%x\n", __func__,
+					  i, data[i], cmp_data[i]);
+					  break;
+				}
+			}
+			if (i < 4) {
+				u8 one_to_four[4] = {1, 2, 3, 4};
+
+				for (j = 0; j < 4; j++) {
+					CWMCU_i2c_write(sensor,
+						CW_I2C_REG_SENSORS_CALIBRATOR_SET_DATA_LIGHT,
+						&one_to_four[j], 1);
+				}
+
+				CWMCU_Get_Calibrator(CW_LIGHT, data);
+				for (j = 0; j < 4; j++) {
+					if (data[j] == 4) {
+						I(
+						  "%s: Found '4', j = %d\n",
+						  __func__, j);
+						j++;
+						break;
+					}
+				}
+
+				
+				for (; j < 4; j++) {
+					CWMCU_i2c_write(sensor,
+						CW_I2C_REG_SENSORS_CALIBRATOR_SET_DATA_LIGHT,
+						&cmp_data[j], 1);
+				}
+
+				
+				for (j = 0; j < 4; j++) {
+					CWMCU_i2c_write(sensor,
+						CW_I2C_REG_SENSORS_CALIBRATOR_SET_DATA_LIGHT,
+						&cmp_data[j], 1);
+				}
+			} else {
+				I("%s: lightsensor kvalues matched\n",
+				  __func__);
+			}
+		}
 	}
 
 	if(((sensor->ps_kheader & (0x50 << 24)) == (0x50 << 24)) && ((sensor->ps_kheader & (0x53 << 16)) == (0x53 << 16))){

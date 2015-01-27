@@ -81,6 +81,7 @@ struct synaptics_virtual_key {
 struct synaptics_config {
 	uint8_t default_cfg;
 	uint32_t sensor_id;
+	bool     mfgconfig;
 	uint32_t pr_number;
 	uint16_t length;
 	uint32_t pl_x_min;

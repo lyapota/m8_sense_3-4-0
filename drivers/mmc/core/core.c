@@ -37,6 +37,7 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
+#include <linux/list_sort.h>
 
 #include "core.h"
 #include "bus.h"
@@ -50,6 +51,7 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/mmc.h>
 #include <trace/events/mmcio.h>
+#include <trace/events/f2fs.h>
 
 static void mmc_clk_scaling(struct mmc_host *host, bool from_wq);
 
@@ -140,6 +142,119 @@ MODULE_PARM_DESC(
 			stats.bkops_level[level-1]++;			\
 		spin_unlock(&stats.lock);				\
 	} while (0);
+
+#define IOTOP_INTERVAL	9500
+#define IOREAD_DUMP_THRESHOLD	10485760 
+#define IOWRITE_DUMP_THRESHOLD	1048576 
+#define IOREAD_DUMP_TOTAL_THRESHOLD		10485760 
+#define IOWRITE_DUMP_TOTAL_THRESHOLD	10485760 
+struct io_account {
+	char task_name[TASK_COMM_LEN];
+	unsigned int pid;
+	u64 io_amount;
+	struct list_head list;
+};
+static LIST_HEAD(ioread_list);
+static LIST_HEAD(iowrite_list);
+static spinlock_t iolist_lock;
+static unsigned long jiffies_next_iotop = 0;
+static int iotop_cmp(void *priv, struct list_head *a, struct list_head *b)
+{
+	struct io_account *ioa = container_of(a, struct io_account, list);
+	struct io_account *iob = container_of(b, struct io_account, list);
+
+	return !(ioa->io_amount > iob->io_amount);
+}
+
+void collect_io_stats(size_t rw_bytes, int type)
+{
+	struct task_struct *process = current;
+	struct io_account *io_act, *tmp;
+	int found;
+	struct list_head *io_list;
+	unsigned long flags;
+
+	if (get_tamper_sf() == 1)
+		return;
+
+	if (!rw_bytes)
+		return;
+
+	if (type == READ)
+		io_list = &ioread_list;
+	else if (type == WRITE)
+		io_list = &iowrite_list;
+	else
+		return;
+
+	found = 0;
+	spin_lock_irqsave(&iolist_lock, flags);
+	list_for_each_entry_safe(io_act, tmp, io_list, list) {
+		if (!strcmp(process->comm, io_act->task_name)) {
+			io_act->io_amount += rw_bytes;
+			io_act->pid = process->pid;
+			found = 1;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&iolist_lock, flags);
+
+	if (!found) {
+		io_act = kmalloc(sizeof(struct io_account), GFP_ATOMIC);
+		if (io_act) {
+			snprintf(io_act->task_name, sizeof(io_act->task_name), "%s", process->comm);
+			io_act->pid = process->pid;
+			io_act->io_amount = rw_bytes;
+			spin_lock_irqsave(&iolist_lock, flags);
+			list_add_tail(&io_act->list, io_list);
+			spin_unlock_irqrestore(&iolist_lock, flags);
+		}
+	}
+}
+
+static void show_iotop(void)
+{
+	struct io_account *io_act, *tmp;
+	int i = 0;
+	unsigned int task_cnt = 0;
+	unsigned long long total_bytes;
+	unsigned long flags;
+
+	if (get_tamper_sf() == 1)
+		return;
+
+	spin_lock_irqsave(&iolist_lock, flags);
+	list_sort(NULL, &ioread_list, iotop_cmp);
+	total_bytes = 0;
+	list_for_each_entry_safe(io_act, tmp, &ioread_list, list) {
+		list_del_init(&io_act->list);
+		if (i++ < 5 && io_act->io_amount > IOREAD_DUMP_THRESHOLD)
+			pr_info("[READ IOTOP%d] %s(%u): %llu KB\n", i, io_act->task_name,
+				io_act->pid, io_act->io_amount / 1024);
+		kfree(io_act);
+		task_cnt++;
+		total_bytes += io_act->io_amount;
+	}
+	if (total_bytes > IOREAD_DUMP_TOTAL_THRESHOLD)
+		pr_info("[IOTOP] READ total %u tasks, %llu KB\n", task_cnt, total_bytes / 1024);
+
+	list_sort(NULL, &iowrite_list, iotop_cmp);
+	i = 0;
+	total_bytes = 0;
+	task_cnt = 0;
+	list_for_each_entry_safe(io_act, tmp, &iowrite_list, list) {
+		list_del_init(&io_act->list);
+		if (i++ < 5 && io_act->io_amount >= IOWRITE_DUMP_THRESHOLD)
+			pr_info("[WRITE IOTOP%d] %s(%u): %llu KB\n", i, io_act->task_name,
+				io_act->pid, io_act->io_amount / 1024);
+		kfree(io_act);
+		task_cnt++;
+		total_bytes += io_act->io_amount;
+	}
+	spin_unlock_irqrestore(&iolist_lock, flags);
+	if (total_bytes > IOWRITE_DUMP_TOTAL_THRESHOLD)
+		pr_info("[IOTOP] WRITE total %u tasks, %llu KB\n", task_cnt, total_bytes / 1024);
+}
 
 static int stats_interval = MMC_STATS_INTERVAL;
 #define K(x) ((x) << (PAGE_SHIFT - 10))
@@ -308,6 +423,10 @@ void mmc_stats(struct work_struct *work)
 		pr_info("%s Statistics: erase %lu blocks in %lu ms, rq %lu\n",
 			mmc_hostname(host), erase_blks, erase_time, erase_rq);
 
+	if (!jiffies_next_iotop || time_after(jiffies, jiffies_next_iotop)) {
+		jiffies_next_iotop = jiffies + msecs_to_jiffies(IOTOP_INTERVAL);
+		show_iotop();
+	}
 	
 	if (host->debug_mask & MMC_DEBUG_RANDOM_RW) {
 		if (wtime_rand) {
@@ -889,8 +1008,10 @@ static bool mmc_should_stop_curr_req(struct mmc_host *host)
 	    (host->areq->cmd_flags & REQ_FUA))
 		return false;
 
+	mmc_host_clk_hold(host);
 	remainder = (host->ops->get_xfer_remain) ?
 		host->ops->get_xfer_remain(host) : -1;
+	mmc_host_clk_release(host);
 	return (remainder > 0);
 }
 
@@ -906,6 +1027,7 @@ static int mmc_stop_request(struct mmc_host *host)
 				mmc_hostname(host));
 		return -ENOTSUPP;
 	}
+	mmc_host_clk_hold(host);
 	err = host->ops->stop_request(host);
 	if (err) {
 		pr_err("%s: Call to host->ops->stop_request() failed (%d)\n",
@@ -940,6 +1062,7 @@ static int mmc_stop_request(struct mmc_host *host)
 		goto out;
 	}
 out:
+	mmc_host_clk_release(host);
 	return err;
 }
 
@@ -2498,10 +2621,12 @@ EXPORT_SYMBOL(mmc_can_discard);
 
 int mmc_can_sanitize(struct mmc_card *card)
 {
+#if 0 
 	if (!mmc_can_trim(card) && !mmc_can_erase(card))
 		return 0;
 	if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_SANITIZE)
 		return 1;
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(mmc_can_sanitize);
@@ -3285,7 +3410,7 @@ EXPORT_SYMBOL(mmc_card_can_sleep);
 int mmc_flush_cache(struct mmc_card *card)
 {
 	struct mmc_host *host = card->host;
-	int err = 0, rc;
+	int err = 0;
 
 	if (!(host->caps2 & MMC_CAP2_CACHE_CTRL) ||
 	     (card->quirks & MMC_QUIRK_CACHE_DISABLE))
@@ -3294,17 +3419,35 @@ int mmc_flush_cache(struct mmc_card *card)
 	if (mmc_card_mmc(card) &&
 			(card->ext_csd.cache_size > 0) &&
 			(card->ext_csd.cache_ctrl & 1)) {
-		err = mmc_switch_ignore_timeout(card, EXT_CSD_CMD_SET_NORMAL,
-						EXT_CSD_FLUSH_CACHE, 1,
-						MMC_FLUSH_REQ_TIMEOUT_MS);
-		if (err == -ETIMEDOUT) {
-			pr_err("%s: cache flush timeout\n",
-					mmc_hostname(card->host));
-			rc = mmc_interrupt_hpi(card);
-			if (rc)
-				pr_err("%s: mmc_interrupt_hpi() failed (%d)\n",
-						mmc_hostname(host), rc);
-		} else if (err) {
+		int retries = 0;
+		while (retries++ < 3) {
+			u32 status;
+			err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+					EXT_CSD_FLUSH_CACHE, 1, 0);
+			if (err) {
+				err = mmc_send_status(card, &status);
+				if (err)
+					break;
+
+				switch (R1_CURRENT_STATE(status)) {
+				case R1_STATE_IDLE:
+				case R1_STATE_READY:
+				case R1_STATE_STBY:
+				case R1_STATE_TRAN:
+					err = 0;
+					break;
+				case R1_STATE_PRG:
+				default:
+					err = -1;
+					break;
+				}
+			}
+
+			if (!err)
+				break;
+		}
+
+		if (err) {
 			pr_err("%s: cache flush error %d\n",
 					mmc_hostname(card->host), err);
 		}
@@ -3731,6 +3874,7 @@ static int __init mmc_init(void)
 	debugfs_create_file("logfile_prealloc_size", 0644, 0, 0,
 			&logfile_prealloc_ops);
 #endif
+	spin_lock_init(&iolist_lock);
 	return 0;
 
 unregister_host_class:

@@ -22,7 +22,6 @@
 #include <asm/traps.h>
 #include <asm/irq_handler.h>
 #include <asm/pda.h>
-#include <mach/devices_cmdline.h>
 
 void decode_address(char *buf, unsigned long address)
 {
@@ -827,10 +826,7 @@ void show_regs(struct pt_regs *fp)
 #endif
 		);
 
-	if(board_rom_type())
-		pr_notice("%s", linux_banner_stockui);
-	else
-		pr_notice("%s", linux_banner);
+	pr_notice("%s", linux_banner);
 
 	pr_notice("\nSEQUENCER STATUS:\t\t%s\n", print_tainted());
 	pr_notice(" SEQSTAT: %08lx  IPEND: %04lx  IMASK: %04lx  SYSCFG: %04lx\n",

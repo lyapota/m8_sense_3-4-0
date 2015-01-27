@@ -45,7 +45,6 @@
 #include <asm/opal.h>
 
 #include <linux/linux_logo.h>
-#include <mach/devices_cmdline.h>
 
 #define DEVTREE_CHUNK_SIZE	0x100000
 
@@ -2473,10 +2472,7 @@ unsigned long __init prom_init(unsigned long r3, unsigned long r4,
 
 	prom_init_stdout();
 
-	if(board_rom_type())
-		prom_printf("Preparing to boot %s", RELOC(linux_banner_stockui));
-	else
-		prom_printf("Preparing to boot %s", RELOC(linux_banner));
+	prom_printf("Preparing to boot %s", RELOC(linux_banner));
 
 	RELOC(of_platform) = prom_find_machine_type();
 	prom_printf("Detected machine type: %x\n", RELOC(of_platform));

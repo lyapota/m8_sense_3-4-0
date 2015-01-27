@@ -19,7 +19,7 @@
 #include <asm/uaccess.h>
 #include <mach/board.h>
 
-#define MSM_MAX_PARTITIONS 48
+#define MSM_MAX_PARTITIONS 52
 
 static int emmc_partition_update;
 struct htc_emmc_partition {
@@ -78,7 +78,7 @@ void add_emmc_part_entry(unsigned int dev_num, unsigned int part_size, char *nam
 			return;
 		}
 	}
-	strncpy(emmc_partitions[emmc_partition_update].partition_name, name, 16);
+	strncpy(emmc_partitions[emmc_partition_update].partition_name, name, sizeof(emmc_partitions[emmc_partition_update].partition_name)-1);
 	emmc_partitions[emmc_partition_update].dev_num = dev_num;
 	emmc_partitions[emmc_partition_update].partition_size = part_size;
 

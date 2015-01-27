@@ -244,6 +244,7 @@ static int capture_prepare_params(struct gaudio_snd_dev *snd)
 	swparams = kzalloc(sizeof(*swparams), GFP_KERNEL);
 	if (!swparams) {
 		pr_err("Failed to allocate sw params");
+		kfree(params);
 		return -ENOMEM;
 	}
 

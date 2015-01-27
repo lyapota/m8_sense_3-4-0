@@ -164,6 +164,7 @@ struct mhl_tx_ctrl {
 	int wr_burst_pending;
 	struct completion req_write_done;
 	spinlock_t lock;
+	struct mutex sii_config_lock;
 	bool tx_powered_off;
 	uint8_t dwnstream_hpd;
 	bool mhl_det_discon;

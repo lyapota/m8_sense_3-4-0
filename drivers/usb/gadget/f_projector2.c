@@ -71,6 +71,8 @@ static int touch_init_p2 = 0;
 #define MAX_NUM_CONTEXT_INFO		15
 #define cHSML_UUID_SIZE             18
 
+#define cHSML_12_CAP_ENDIAN         (1 << HSML_12_CAP_ENDIAN)
+
 #define htc_mode_info2(fmt, args...) \
 	printk(KERN_INFO "[projector2] " pr_fmt(fmt), ## args)
 
@@ -1507,6 +1509,15 @@ static ssize_t projector2_ver_show(struct device *dev,
 struct projector2_dev *projector2_dev = prj2_dev;
 
     return snprintf(buf, PAGE_SIZE, "%d\n", projector2_dev->hsml_ver);
+}
+
+static ssize_t projector2_cap_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+struct projector2_dev *projector2_dev = prj2_dev;
+struct hsml_protocol *config = projector2_dev->hsml_proto;
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", config->set_parameters_info.capabilities & cHSML_12_CAP_ENDIAN);
 }
 
 static ssize_t projector2_uuid_store(struct device *dev,

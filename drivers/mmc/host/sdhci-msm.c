@@ -160,6 +160,9 @@ atomic_t emmc_reboot = ATOMIC_INIT(0);
 #define sdhci_is_valid_mpm_wakeup_int(_h) ((_h)->pdata->mpm_sdiowakeup_int >= 0)
 #define sdhci_is_valid_gpio_wakeup_int(_h) ((_h)->pdata->sdiowakeup_irq >= 0)
 
+#define NUM_TUNING_PHASES		16
+#define MAX_DRV_TYPES_SUPPORTED_HS200	3
+
 static const u32 tuning_block_64[] = {
 	0x00FF0FFF, 0xCCC3CCFF, 0xFFCC3CC3, 0xEFFEFFFE,
 	0xDDFFDFFF, 0xFBFFFBFF, 0xFF7FFFBF, 0xEFBDF777,
@@ -238,6 +241,7 @@ struct sdhci_msm_pad_drv {
 
 struct sdhci_msm_pad_drv_data {
 	struct sdhci_msm_pad_drv *on;
+	struct sdhci_msm_pad_drv *on_uhs;
 	struct sdhci_msm_pad_drv *on_sdr104;
 	struct sdhci_msm_pad_drv *off;
 	u8 size;
@@ -786,11 +790,40 @@ out:
 	return ret;
 }
 
+static void sdhci_msm_set_mmc_drv_type(struct sdhci_host *host, u32 opcode,
+		u8 drv_type)
+{
+	struct mmc_command cmd = {0};
+	struct mmc_request mrq = {NULL};
+	struct mmc_host *mmc = host->mmc;
+	u8 val = ((drv_type << 4) | 2);
+
+	cmd.opcode = MMC_SWITCH;
+	cmd.arg = (MMC_SWITCH_MODE_WRITE_BYTE << 24) |
+		(EXT_CSD_HS_TIMING << 16) |
+		(val << 8) |
+		EXT_CSD_CMD_SET_NORMAL;
+	cmd.flags = MMC_CMD_AC | MMC_RSP_R1B;
+	
+	cmd.cmd_timeout_ms = 1000 * 1000;
+
+	memset(cmd.resp, 0, sizeof(cmd.resp));
+	cmd.retries = 3;
+
+	mrq.cmd = &cmd;
+	cmd.data = NULL;
+
+	mmc_wait_for_req(mmc, &mrq);
+	pr_debug("%s: %s: set card drive type to %d\n",
+			mmc_hostname(mmc), __func__,
+			drv_type);
+}
+
 int sdhci_msm_execute_tuning(struct sdhci_host *host, u32 opcode)
 {
 	unsigned long flags;
 	int tuning_seq_cnt = 3;
-	u8 phase, *data_buf, tuned_phases[16], tuned_phase_cnt = 0;
+	u8 phase, *data_buf, tuned_phases[NUM_TUNING_PHASES], tuned_phase_cnt;
 	const u32 *tuning_block_pattern = tuning_block_64;
 	int size = sizeof(tuning_block_64); 
 	int rc;
@@ -798,6 +831,9 @@ int sdhci_msm_execute_tuning(struct sdhci_host *host, u32 opcode)
 	struct mmc_ios	ios = host->mmc->ios;
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_msm_host *msm_host = pltfm_host->priv;
+	u8 drv_type = 0;
+	bool drv_type_changed = false;
+	struct mmc_card *card = host->mmc->card;
 
 	if (host->clock <= CORE_FREQ_100MHZ ||
 		!((ios.timing == MMC_TIMING_MMC_HS400) ||
@@ -835,6 +871,8 @@ int sdhci_msm_execute_tuning(struct sdhci_host *host, u32 opcode)
 	}
 
 retry:
+	tuned_phase_cnt = 0;
+
 	
 	rc = msm_init_cm_dll(host);
 	if (rc)
@@ -873,10 +911,35 @@ retry:
 			!memcmp(data_buf, tuning_block_pattern, size)) {
 			
 			tuned_phases[tuned_phase_cnt++] = phase;
-			pr_debug("%s: %s: found good phase = %d\n",
+			pr_debug("%s: %s: found *** good *** phase = %d\n",
+				mmc_hostname(mmc), __func__, phase);
+		} else {
+			pr_debug("%s: %s: found ## bad ## phase = %d\n",
 				mmc_hostname(mmc), __func__, phase);
 		}
 	} while (++phase < 16);
+
+	if ((tuned_phase_cnt == NUM_TUNING_PHASES) &&
+			card && mmc_card_mmc(card)) {
+		pr_debug("%s: tuned phases count: %d\n", mmc_hostname(mmc),
+				tuned_phase_cnt);
+
+		
+		while (++drv_type <= MAX_DRV_TYPES_SUPPORTED_HS200) {
+			if (card->ext_csd.raw_drive_strength &
+					(1 << drv_type)) {
+				sdhci_msm_set_mmc_drv_type(host, opcode,
+						drv_type);
+				if (!drv_type_changed)
+					drv_type_changed = true;
+				goto retry;
+			}
+		}
+	}
+
+	
+	if (drv_type_changed)
+		sdhci_msm_set_mmc_drv_type(host, opcode, 0);
 
 	if (tuned_phase_cnt) {
 		rc = msm_find_most_appropriate_phase(host, tuned_phases,
@@ -977,17 +1040,32 @@ static int sdhci_msm_setup_pad(struct sdhci_msm_pltfm_data *pdata, bool enable)
 	return 0;
 }
 
-static int sdhci_msm_setup_hifreq_pad(struct sdhci_msm_pltfm_data *pdata)
+static int sdhci_msm_setup_hifreq_pad(struct sdhci_msm_pltfm_data *pdata,
+				struct sdhci_host *host)
 {
 	struct sdhci_msm_pad_data *curr;
+	struct mmc_ios curr_ios = host->mmc->ios;
 	int i;
 
 	curr = pdata->pin_data->pad_data;
-	for (i = 0; i < curr->drv->size; i++) {
+	if (curr_ios.timing == MMC_TIMING_UHS_SDR104) {
+		for (i = 0; i < curr->drv->size; i++) {
 			if (!curr->drv->on_sdr104[i].no || !curr->drv->on_sdr104[i].val)
 				break;
 			msm_tlmm_set_hdrive(curr->drv->on_sdr104[i].no,
 				curr->drv->on_sdr104[i].val);
+		}
+	}
+	else if (curr_ios.timing == MMC_TIMING_UHS_SDR12 ||
+		curr_ios.timing == MMC_TIMING_UHS_SDR25 ||
+		curr_ios.timing == MMC_TIMING_UHS_SDR50 ||
+		curr_ios.timing == MMC_TIMING_UHS_DDR50) {
+		for (i = 0; i < curr->drv->size; i++) {
+			if (!curr->drv->on_uhs[i].no || !curr->drv->on_uhs[i].val)
+				break;
+			msm_tlmm_set_hdrive(curr->drv->on_uhs[i].no,
+				curr->drv->on_uhs[i].val);
+		}
 	}
 	return 0;
 }
@@ -1008,14 +1086,15 @@ static int sdhci_msm_setup_pins(struct sdhci_msm_pltfm_data *pdata, bool enable)
 	return ret;
 }
 
-static int sdhci_msm_setup_hifreq_pins(struct sdhci_msm_pltfm_data *pdata)
+static int sdhci_msm_setup_hifreq_pins(struct sdhci_msm_pltfm_data *pdata,
+				struct sdhci_host *host)
 {
 	int ret = 0;
 
 	if (!pdata->pin_data)
 		return 0;
 	if (!pdata->pin_data->is_gpio)
-		ret = sdhci_msm_setup_hifreq_pad(pdata);
+		ret = sdhci_msm_setup_hifreq_pad(pdata, host);
 
 	return ret;
 }
@@ -1245,8 +1324,9 @@ static int sdhci_msm_dt_get_pad_drv_info(struct device *dev, int id,
 		goto out;
 	}
 	drv_data->on = drv;
-	drv_data->on_sdr104 = drv + drv_data->size;
-	drv_data->off = drv + drv_data->size * 2;
+	drv_data->on_uhs = drv + drv_data->size;
+	drv_data->on_sdr104 = drv + drv_data->size * 2;
+	drv_data->off = drv + drv_data->size * 3;
 
 	ret = sdhci_msm_dt_get_array(dev, "qcom,pad-drv-on",
 			&tmp, &len, drv_data->size);
@@ -1258,6 +1338,20 @@ static int sdhci_msm_dt_get_pad_drv_info(struct device *dev, int id,
 		drv_data->on[i].val = tmp[i];
 		dev_dbg(dev, "%s: val[%d]=0x%x\n", __func__,
 				i, drv_data->on[i].val);
+	}
+
+	ret = sdhci_msm_dt_get_array(dev, "qcom,pad-drv-on-uhs",
+			&tmp, &len, drv_data->size);
+	if (!ret) {
+		for (i = 0; i < len; i++) {
+			drv_data->on_uhs[i].no = base + i;
+			drv_data->on_uhs[i].val = tmp[i];
+			dev_dbg(dev, "%s: val[%d]=0x%x\n", __func__,
+					i, drv_data->on_uhs[i].val);
+		}
+	} else {
+		memset(drv_data->on_uhs, 0, drv_data->size * sizeof(struct sdhci_msm_pad_drv));
+		dev_dbg(dev, "%s: can`t find UHS-I setting\n", __func__);
 	}
 
 	ret = sdhci_msm_dt_get_array(dev, "qcom,pad-drv-on-sdr104",
@@ -1481,11 +1575,6 @@ static struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev)
 
 	if (of_get_property(np, "htc,bkops_support", NULL))
 		pdata->caps2 |= MMC_CAP2_INIT_BKOPS;
-
-	if (of_get_property(np, "htc,cache_support", NULL)) {
-		dev_info(dev, " parsed htc,cache_support\n");
-		pdata->caps2 |= MMC_CAP2_CACHE_CTRL;
-	}
 
 	if (of_get_property(np, "htc,packed_cmd_support", NULL)) {
 		dev_info(dev, " parsed htc,packed_cmd_support\n");
@@ -2458,8 +2547,9 @@ static void sdhci_msm_set_clock(struct sdhci_host *host, unsigned int clock)
 
 	if (sup_clock != msm_host->clk_rate) {
 		if (is_sd_platform(msm_host->pdata) &&
-			curr_ios.timing == MMC_TIMING_UHS_SDR104)
-			sdhci_msm_setup_hifreq_pins(msm_host->pdata);
+			curr_ios.signal_voltage == MMC_SIGNAL_VOLTAGE_180)
+			sdhci_msm_setup_hifreq_pins(msm_host->pdata, host);
+
 		pr_debug("%s: %s: setting clk rate to %u\n",
 				mmc_hostname(host->mmc), __func__, sup_clock);
 		rc = clk_set_rate(msm_host->clk, sup_clock);
@@ -2935,7 +3025,9 @@ static int __devinit sdhci_msm_probe(struct platform_device *pdev)
 	msm_host->mmc->caps2 |= MMC_CAP2_CORE_RUNTIME_PM;
 	msm_host->mmc->caps2 |= (MMC_CAP2_BOOTPART_NOACC |
 				MMC_CAP2_DETECT_ON_ERR);
-	msm_host->mmc->caps2 |= MMC_CAP2_SANITIZE;
+	
+	msm_host->mmc->caps2 |= MMC_CAP2_CACHE_CTRL;
+	
 	
 	msm_host->mmc->caps2 |= MMC_CAP2_STOP_REQUEST;
 	msm_host->mmc->caps2 |= MMC_CAP2_ASYNC_SDIO_IRQ_4BIT_MODE;

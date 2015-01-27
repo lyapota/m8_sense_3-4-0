@@ -347,6 +347,8 @@ struct usb_gadget {
 	int             miMaxMtu;
 	bool				l1_supported;
 	bool				streaming_enabled;
+	unsigned		ats_reset_irq_count;
+	u32				xfer_isr_count;
 };
 
 static inline void set_gadget_data(struct usb_gadget *gadget, void *data)
@@ -454,7 +456,7 @@ struct usb_gadget_driver {
 	void			(*mute_disconnect)(struct usb_gadget *);
 	void			(*suspend)(struct usb_gadget *);
 	void			(*resume)(struct usb_gadget *);
-
+	void			(*broadcast_abnormal_usb_reset)(void);
 	
 	struct device_driver	driver;
 

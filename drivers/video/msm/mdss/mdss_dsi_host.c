@@ -837,7 +837,6 @@ int mdss_dsi_cmds_rx(struct mdss_dsi_ctrl_pdata *ctrl,
 		short_response = 1;
 		pkt_size = rlen;
 		rx_byte = 4;
-		pkt_size = 0;
 	} else {
 		short_response = 0;
 		data_byte = 8;	

@@ -16,7 +16,6 @@
 #include <asm/blackfin.h>
 #include <asm/irq_handler.h>
 #include <asm/early_printk.h>
-#include <mach/devices_cmdline.h>
 
 #ifdef CONFIG_SERIAL_BFIN
 extern struct console *bfin_earlyserial_init(unsigned int port,
@@ -158,12 +157,7 @@ asmlinkage void __init init_early_exception_vectors(void)
 	SSYNC();
 
 	mark_shadow_error();
-
-	if(board_rom_type())
-		early_shadow_puts(linux_banner_stockui);
-	else
-		early_shadow_puts(linux_banner);
-
+	early_shadow_puts(linux_banner);
 	early_shadow_stamp();
 
 	if (CPUID != bfin_cpuid()) {

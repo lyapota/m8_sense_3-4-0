@@ -38,8 +38,6 @@
 #include <asm/fiq_glue.h>
 #include <asm/stacktrace.h>
 
-#include <mach/devices_cmdline.h>
-
 #include <linux/uaccess.h>
 
 #include "fiq_debugger_ringbuf.h"
@@ -640,10 +638,7 @@ static bool debug_fiq_exec(struct fiq_debugger_state *state,
 	} else if (!strcmp(cmd, "kmsg")) {
 		dump_kernel_log(state);
 	} else if (!strcmp(cmd, "version")) {
-		if(board_rom_type())
-			debug_printf(state, "%s\n", linux_banner_stockui);
-		else
-			debug_printf(state, "%s\n", linux_banner);
+		debug_printf(state, "%s\n", linux_banner);
 	} else if (!strcmp(cmd, "sleep")) {
 		state->no_sleep = false;
 		debug_printf(state, "enabling sleep\n");

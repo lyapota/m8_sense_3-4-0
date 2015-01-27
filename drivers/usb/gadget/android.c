@@ -328,6 +328,9 @@ static void android_pm_qos_update_latency(struct android_dev *dev, int vote)
 	last_vote = vote;
 }
 
+
+void android_broadcast_abnormal_usb_reset(void);
+
 static void android_work(struct work_struct *data)
 {
 	struct android_dev *dev = container_of(data, struct android_dev, work);
@@ -2579,6 +2582,7 @@ static DEVICE_ATTR(client_pixel_format, S_IRUGO | S_IWUSR, projector2_pixel_form
 static DEVICE_ATTR(client_context_info, S_IRUGO | S_IWUSR, NULL, context_info_store);
 #if HSML_VERSION_12
 static DEVICE_ATTR(client_ver, S_IRUGO | S_IWUSR, projector2_ver_show, NULL);
+static DEVICE_ATTR(client_cap, S_IRUGO | S_IWUSR, projector2_cap_show, NULL);
 static DEVICE_ATTR(client_uuid, S_IRUGO | S_IWUSR, NULL, projector2_uuid_store);
 #endif
 
@@ -2590,6 +2594,7 @@ static struct device_attribute *projector2_function_attributes[] = {
 	&dev_attr_client_context_info,
 #if HSML_VERSION_12
 	&dev_attr_client_ver,
+	&dev_attr_client_cap,
 	&dev_attr_client_uuid,
 #endif
 	NULL
@@ -3804,6 +3809,22 @@ static struct platform_driver android_platform_driver = {
 	.shutdown = android_shutdown,
 };
 
+void android_broadcast_abnormal_usb_reset(void)
+{
+
+	char *envp[] = {"EVENT=ABNORMAL_USB_RESET", NULL };
+	int ats = board_get_usb_ats();
+	int ret;
+	if (!ats)
+		return;
+	ret = kobject_uevent_env(&_android_dev->dev->kobj, KOBJ_CHANGE,envp);
+	if (!ret)
+		printk(KERN_INFO "[USB] broadcast abnormal usb reset\n");
+	else
+		printk(KERN_INFO "[USB] fail to broadcast abnormal usb reset\n");
+
+}
+
 static int __init init(void)
 {
 	int ret;
@@ -3816,6 +3837,7 @@ static int __init init(void)
 	composite_driver.suspend = android_suspend;
 	composite_driver.resume = android_resume;
 	composite_driver.mute_disconnect = android_mute_disconnect;
+	composite_driver.broadcast_abnormal_usb_reset = android_broadcast_abnormal_usb_reset;
 
 	INIT_LIST_HEAD(&android_dev_list);
 	INIT_WORK(&switch_adb_work, do_switch_adb_work);

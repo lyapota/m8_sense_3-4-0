@@ -261,6 +261,7 @@ struct _mmc_csd {
 #define EXT_CSD_REV			192	
 #define EXT_CSD_STRUCTURE		194	
 #define EXT_CSD_CARD_TYPE		196	
+#define EXT_CSD_DRIVE_STRENGTH		197	
 #define EXT_CSD_OUT_OF_INTERRUPT_TIME	198	
 #define EXT_CSD_PART_SWITCH_TIME        199     
 #define EXT_CSD_PWR_CL_52_195		200	

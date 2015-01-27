@@ -177,13 +177,14 @@ struct tmc_drvdata {
 	bool			byte_cntr_read_active;
 	wait_queue_head_t	wq;
 	char			*byte_cntr_node;
+	uint32_t		mem_size;
 };
 
 static void tmc_wait_for_flush(struct tmc_drvdata *drvdata)
 {
 	int count;
 
-	
+	/* Ensure no flush is in progress */
 	for (count = TIMEOUT_US; BVAL(tmc_readl(drvdata, TMC_FFSR), 0) != 0
 				&& count > 0; count--)
 		udelay(1);
@@ -195,7 +196,7 @@ static void tmc_wait_for_ready(struct tmc_drvdata *drvdata)
 {
 	int count;
 
-	
+	/* Ensure formatter, unformatter and hardware fifo are empty */
 	for (count = TIMEOUT_US; BVAL(tmc_readl(drvdata, TMC_STS), 2) != 1
 				&& count > 0; count--)
 		udelay(1);
@@ -213,7 +214,7 @@ static void tmc_flush_and_stop(struct tmc_drvdata *drvdata)
 	tmc_writel(drvdata, ffcr, TMC_FFCR);
 	ffcr |= BIT(6);
 	tmc_writel(drvdata, ffcr, TMC_FFCR);
-	
+	/* Ensure flush completes */
 	for (count = TIMEOUT_US; BVAL(tmc_readl(drvdata, TMC_FFCR), 6) != 0
 				&& count > 0; count--)
 		udelay(1);
@@ -253,10 +254,10 @@ static void __tmc_etr_enable_to_bam(struct tmc_drvdata *drvdata)
 	if (drvdata->enable_to_bam)
 		return;
 
-	
+	/* Configure and enable required CSR registers */
 	msm_qdss_csr_enable_bam_to_usb();
 
-	
+	/* Configure and enable ETR for usb bam output */
 
 	TMC_UNLOCK(drvdata);
 
@@ -275,7 +276,7 @@ static void __tmc_etr_enable_to_bam(struct tmc_drvdata *drvdata)
 	tmc_writel(drvdata, (uint32_t)bamdata->data_fifo.phys_base, TMC_DBALO);
 	tmc_writel(drvdata, (((uint64_t)bamdata->data_fifo.phys_base) >> 32)
 		   & 0xFF, TMC_DBAHI);
-	
+	/* Set FOnFlIn for periodic flush */
 	tmc_writel(drvdata, 0x133, TMC_FFCR);
 	tmc_writel(drvdata, drvdata->trigger_cntr, TMC_TRG);
 	__tmc_enable(drvdata);
@@ -293,12 +294,12 @@ static int tmc_etr_bam_enable(struct tmc_drvdata *drvdata)
 	if (bamdata->enable)
 		return 0;
 
-	
+	/* Reset bam to start with */
 	ret = sps_device_reset(bamdata->handle);
 	if (ret)
 		goto err0;
 
-	
+	/* Now configure and enable bam */
 
 	bamdata->pipe = sps_alloc_endpoint();
 	if (!bamdata->pipe)
@@ -336,7 +337,7 @@ static void __tmc_etr_disable_to_bam(struct tmc_drvdata *drvdata)
 	if (!drvdata->enable_to_bam)
 		return;
 
-	
+	/* Ensure periodic flush is disabled in CSR block */
 	msm_qdss_csr_disable_flush();
 
 	TMC_UNLOCK(drvdata);
@@ -346,7 +347,7 @@ static void __tmc_etr_disable_to_bam(struct tmc_drvdata *drvdata)
 
 	TMC_LOCK(drvdata);
 
-	
+	/* Disable CSR configuration */
 	msm_qdss_csr_disable_bam_to_usb();
 	drvdata->enable_to_bam = false;
 }
@@ -437,7 +438,7 @@ static void tmc_etr_byte_cntr_stop(struct tmc_drvdata *drvdata)
 
 static void __tmc_etb_enable(struct tmc_drvdata *drvdata)
 {
-	
+	/* Zero out the memory to help with debug */
 	memset(drvdata->buf, 0, drvdata->size);
 
 	TMC_UNLOCK(drvdata);
@@ -454,7 +455,7 @@ static void __tmc_etr_enable_to_mem(struct tmc_drvdata *drvdata)
 {
 	uint32_t axictl;
 
-	
+	/* Zero out the memory to help with debug */
 	memset(drvdata->vaddr, 0, drvdata->size);
 
 	TMC_UNLOCK(drvdata);
@@ -639,7 +640,6 @@ static void __tmc_etb_dump(struct tmc_drvdata *drvdata)
 	char *hdr;
 	char *bufp;
 	uint32_t read_data;
-	int i;
 
 	memwidth = BMVAL(tmc_readl(drvdata, CORESIGHT_DEVID), 8, 10);
 	if (memwidth == TMC_MEM_INTF_WIDTH_32BITS)
@@ -653,16 +653,22 @@ static void __tmc_etb_dump(struct tmc_drvdata *drvdata)
 
 	bufp = drvdata->buf;
 	while (1) {
-		for (i = 0; i < memwords; i++) {
-			read_data = tmc_readl_no_log(drvdata, TMC_RRD);
-			if (read_data == 0xFFFFFFFF)
-				goto out;
-			memcpy(bufp, &read_data, BYTES_PER_WORD);
-			bufp += BYTES_PER_WORD;
+		read_data = tmc_readl_no_log(drvdata, TMC_RRD);
+		if (read_data == 0xFFFFFFFF)
+			goto out;
+		if ((bufp - drvdata->buf) >= drvdata->size) {
+			dev_err(drvdata->dev, "ETF-ETB end marker missing\n");
+			goto out;
 		}
+		memcpy(bufp, &read_data, BYTES_PER_WORD);
+		bufp += BYTES_PER_WORD;
 	}
 
 out:
+	if ((bufp - drvdata->buf) % (memwords * BYTES_PER_WORD))
+		dev_dbg(drvdata->dev, "ETF-ETB data is not %lx bytes aligned\n",
+			(unsigned long) memwords * BYTES_PER_WORD);
+
 	if (drvdata->aborting) {
 		hdr = drvdata->buf - PAGE_SIZE;
 		*(uint32_t *)(hdr + TMC_ETFETB_DUMP_MAGIC_OFF) =
@@ -1068,15 +1074,23 @@ static ssize_t tmc_etr_byte_cntr_read(struct file *file, char __user *data,
 		return -EIO;
 
 	mutex_lock(&drvdata->byte_cntr_lock);
+	/* In case the byte counter is enabled and disabled multiple times
+	 * prevent unexpected data from being given to the user
+	 */
 	if (!drvdata->byte_cntr_read_active)
 		goto read_err0;
 
 	if (!drvdata->byte_cntr_enable) {
 		if (!atomic_read(&drvdata->byte_cntr_irq_cnt)) {
+			/* Read the last 'block' of data which might be needed
+			 * to be read partially. If already read, return 0
+			 */
 			len = tmc_etr_flush_bytes(drvdata, ppos, bytes);
 			if (!len)
 				goto read_err0;
 		} else {
+			/* Keep reading until you reach the last block of data
+			 */
 			tmc_etr_read_bytes(drvdata, ppos, bytes, &len);
 		}
 	} else {
@@ -1302,6 +1316,32 @@ static ssize_t tmc_etr_store_byte_cntr_value(struct device *dev,
 static DEVICE_ATTR(byte_cntr_value, S_IRUGO | S_IWUSR,
 		   tmc_etr_show_byte_cntr_value, tmc_etr_store_byte_cntr_value);
 
+static ssize_t tmc_etr_show_mem_size(struct device *dev,
+				     struct device_attribute *attr,
+				     char *buf)
+{
+	struct tmc_drvdata *drvdata = dev_get_drvdata(dev->parent);
+	unsigned long val = drvdata->mem_size;
+
+	return scnprintf(buf, PAGE_SIZE, "%#lx\n", val);
+}
+
+static ssize_t tmc_etr_store_mem_size(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t size)
+{
+	struct tmc_drvdata *drvdata = dev_get_drvdata(dev->parent);
+	unsigned long val;
+
+	if (sscanf(buf, "%lx", &val) != 1)
+		return -EINVAL;
+
+	drvdata->mem_size = val;
+	return size;
+}
+static DEVICE_ATTR(mem_size, S_IRUGO | S_IWUSR,
+		   tmc_etr_show_mem_size, tmc_etr_store_mem_size);
+
 static struct attribute *tmc_attrs[] = {
 	&dev_attr_trigger_cntr.attr,
 	NULL,
@@ -1314,6 +1354,7 @@ static struct attribute_group tmc_attr_grp = {
 static struct attribute *tmc_etr_attrs[] = {
 	&dev_attr_out_mode.attr,
 	&dev_attr_byte_cntr_value.attr,
+	&dev_attr_mem_size.attr,
 	NULL,
 };
 
@@ -1360,8 +1401,8 @@ static int __devinit tmc_etr_bam_init(struct platform_device *pdev,
 		return -ENOMEM;
 	bamdata->props.virt_size = resource_size(res);
 
-	bamdata->props.event_threshold = 0x4; 
-	bamdata->props.summing_threshold = 0x10; 
+	bamdata->props.event_threshold = 0x4; /* Pipe event threshold */
+	bamdata->props.summing_threshold = 0x10; /* BAM event threshold */
 	bamdata->props.irq = 0;
 	bamdata->props.num_pipes = TMC_ETR_BAM_NR_PIPES;
 
@@ -1459,6 +1500,9 @@ static int tmc_etr_byte_cntr_init(struct platform_device *pdev,
 	drvdata->byte_cntr_irq = platform_get_irq_byname(pdev,
 							"byte-cntr-irq");
 	if (drvdata->byte_cntr_irq < 0) {
+		/* Even though this is an error condition, we do not fail
+		 * the probe as the byte counter feature is optional
+		 */
 		dev_err(&pdev->dev, "Byte-cntr-irq not specified\n");
 		goto err;
 	}
@@ -1615,6 +1659,11 @@ static int __devinit tmc_probe(struct platform_device *pdev)
 		dump.start_addr = virt_to_phys(baddr);
 		dump.end_addr = dump.start_addr + PAGE_SIZE + drvdata->size;
 		ret = msm_dump_table_register(&dump);
+		/*
+		 * Don't free the buffer in case of error since it can still
+		 * be used to provide dump collection via the device node or
+		 * as part of abort.
+		 */
 		if (ret)
 			dev_info(dev, "TMC ETF-ETB dump setup failed\n");
 		etfetb_count++;
@@ -1628,6 +1677,11 @@ static int __devinit tmc_probe(struct platform_device *pdev)
 		dump.start_addr = virt_to_phys(baddr);
 		dump.end_addr = dump.start_addr + PAGE_SIZE + reg_size;
 		ret = msm_dump_table_register(&dump);
+		/*
+		 * Don't free the buffer in case of error since it can still
+		 * be used to dump registers as part of abort to aid post crash
+		 * parsing.
+		 */
 		if (ret)
 			dev_info(dev, "TMC REG dump setup failed\n");
 	} else {

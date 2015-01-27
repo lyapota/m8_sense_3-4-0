@@ -43,9 +43,6 @@
 #ifdef CONFIG_HTC_BATT_8960
 #include "mach/htc_battery_cell.h"
 #endif
-#ifdef CONFIG_FORCE_FAST_CHARGE 
-#include <linux/fastchg.h> 
-#endif 
 #ifdef pr_debug
 #undef pr_debug
 #endif
@@ -1479,7 +1476,7 @@ qpnp_chg_usb_chg_gone_irq_handler(int irq, void *_chip)
 
 	pr_info("[irq]chg_gone triggered, usb_sts:0x%X\n", usb_sts);
 
-	if (qpnp_chg_is_usb_chg_plugged_in(chip) && (usb_sts & CHG_GONE_IRQ)) {
+	if (qpnp_chg_is_usb_chg_plugged_in(chip)) {
 		wake_lock_timeout(&chip->reverse_boost_wa_wake_lock, 2*HZ);
 		if (delayed_work_pending(&chip->fix_reverse_boost_check_work))
 			__cancel_delayed_work(&chip->fix_reverse_boost_check_work);
@@ -1498,7 +1495,16 @@ qpnp_fix_reverse_boost_check_work(struct work_struct *work)
 				struct qpnp_chg_chip, fix_reverse_boost_check_work);
 	struct qpnp_vadc_result result;
 	int usbin, vchg, rc;
-	u8 chgpth_set_type, chgpth_polarity_high, chg_gone_int;
+	u8 chgpth_set_type, chgpth_polarity_high, chg_gone_int, usb_sts;
+
+	rc = qpnp_chg_read(chip, &usb_sts, INT_RT_STS(chip->usb_chgpth_base), 1);
+	if (rc)
+		pr_err("failed to read usb_chgpth_sts rc=%d\n", rc);
+
+	if (!(usb_sts & CHG_GONE_IRQ)) {
+		pr_info("usb_sts=0x%X, exit workaround.\n", usb_sts);
+		return;
+	}
 
 	rc = qpnp_vadc_read(chip->vadc_dev, USBIN, &result);
 	if (rc)
@@ -1516,9 +1522,9 @@ qpnp_fix_reverse_boost_check_work(struct work_struct *work)
 					chip->usb_chgpth_base + CHGPTH_INT_POLARITY_HIGH , 1);
 	rc = qpnp_chg_read(chip, &chg_gone_int,
 					chip->usb_chgpth_base + CHGPTH_CHG_GONE_INT , 1);
-	pr_info("usbin=%d(uV), vchg=%d(uV), set_type=0x%x, ply_high=0x%x, "
+	pr_info("usb_sts=0x%X, usbin=%d(uV), vchg=%d(uV), set_type=0x%x, ply_high=0x%x, "
 			"chg_gone_int=0x%x\n",
-		usbin, vchg, chgpth_set_type, chgpth_polarity_high,chg_gone_int);
+		usb_sts, usbin, vchg, chgpth_set_type, chgpth_polarity_high,chg_gone_int);
 	if (usbin < ENABLE_REVERSE_BOOST_WA_THR_UV) {
 		qpnp_chg_charge_en(chip, 0);
 		qpnp_chg_force_run_on_batt(chip, 1);
@@ -3798,10 +3804,7 @@ int pm8941_set_pwrsrc_and_charger_enable(enum htc_power_source_type src,
 	case HTC_PWR_SOURCE_TYPE_DETECTING:
 	case HTC_PWR_SOURCE_TYPE_UNKNOWN_USB:
 	case HTC_PWR_SOURCE_TYPE_USB:
-		if (force_fast_charge) 
-			mA = the_chip->ac_iusbmax_ma; 
-		else 
-			mA = USB_MA_500; 
+		mA = USB_MA_500;
 		break;
 	case HTC_PWR_SOURCE_TYPE_AC:
 	case HTC_PWR_SOURCE_TYPE_9VAC:

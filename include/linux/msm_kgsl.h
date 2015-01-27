@@ -528,7 +528,8 @@ struct kgsl_perfcounter_get {
 	unsigned int groupid;
 	unsigned int countable;
 	unsigned int offset;
-	unsigned int __pad[2]; 
+	unsigned int offset_hi;
+	unsigned int __pad; 
 };
 
 #define IOCTL_KGSL_PERFCOUNTER_GET \

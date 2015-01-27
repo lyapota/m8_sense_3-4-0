@@ -280,6 +280,7 @@ struct mdss_panel_info {
 	int panel_id;
 	int first_power_on;
 	u32 mdss_pp_hue;
+	u32 skip_frame;
 
 	uint32_t pcc_r;
 	uint32_t pcc_g;

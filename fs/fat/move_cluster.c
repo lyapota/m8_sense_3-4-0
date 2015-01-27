@@ -787,15 +787,19 @@ int fat_get_boot_info(struct inode *inode, struct bootInfo *boot)
 
 int fat_get_file_info(struct inode *inode, struct fileInfo *info)
 {
-	struct super_block *sb = inode->i_sb;
-	struct msdos_sb_info *sbi = MSDOS_SB(sb);
-	struct msdos_inode_info * msinode= MSDOS_I(inode);
+	struct super_block *sb;
+	struct msdos_sb_info *sbi;
+	struct msdos_inode_info * msinode;
 
 	if (!info || !inode)
 	{
 		printk(KERN_INFO "fat_get_file_info failed\n");
 		return 0;
 	}
+
+    sb = inode->i_sb;
+    sbi = MSDOS_SB(sb);
+    msinode = MSDOS_I(inode);
 
 	info->lcn = msinode->i_start;
 	info->realClusters = (inode->i_size + sbi->cluster_size - 1) >> sbi->cluster_bits;
@@ -1437,7 +1441,8 @@ int fat_ioctl_move_cluster(struct file *filp, u32 __user *user_arg)
 				if (copy_from_user(&info, pkg.data, sizeof(struct fallocInfo))  == 0)
 				{
 					inode = ilookup(sb, pkg.inodeNumber);
-					if (0 != fat_fallocate(inode, info.mode, info.offset, info.len, info.newLcn))
+					if (inode == 0) break;
+                    if (0 != fat_fallocate(inode, info.mode, info.offset, info.len, info.newLcn))
 					{
 						ret = 0;
 					}

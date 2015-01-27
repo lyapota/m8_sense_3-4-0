@@ -909,7 +909,16 @@ static int mhl_get_gpio_dt_data(struct device *dev)
 	} else {
 		pr_info("[MHL]rst_gpio[%d]=%d,PwrOn Pull_High", drv_info.reset_pin,
 				gpio_get_value_cansleep(drv_info.reset_pin));
+
+		
+		usleep(1000);
 		gpio_set_value_cansleep(drv_info.reset_pin, 1);
+		usleep(1000);
+		gpio_set_value_cansleep(drv_info.reset_pin, 0);
+		
+		usleep(1000);
+		gpio_set_value_cansleep(drv_info.reset_pin, 1);
+
 		msleep(100);	
 		platform_signals[TX_HW_RESET].gpio_number = drv_info.reset_pin;
 	}

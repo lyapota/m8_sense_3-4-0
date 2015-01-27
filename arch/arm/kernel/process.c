@@ -41,8 +41,6 @@
 #include <asm/mach/time.h>
 #include <asm/tls.h>
 
-#include <mach/devices_cmdline.h>
-
 #ifdef CONFIG_CC_STACKPROTECTOR
 #include <linux/stackprotector.h>
 unsigned long __stack_chk_guard __read_mostly;
@@ -118,12 +116,7 @@ typedef void (*phys_reset_t)(unsigned long);
 void arm_machine_flush_console(void)
 {
 	printk("\n");
-
-	if(board_rom_type())
-		pr_emerg("Restarting %s\n", linux_banner_stockui);
-	else
-		pr_emerg("Restarting %s\n", linux_banner);
-
+	pr_emerg("Restarting %s\n", linux_banner);
 	if (console_trylock()) {
 		console_unlock();
 		return;

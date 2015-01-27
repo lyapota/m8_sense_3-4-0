@@ -55,6 +55,8 @@
 
 #include "mdss_fb.h"
 #include "mdss_htc_util.h"
+#include "mdss_dsi.h"
+
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
@@ -1913,11 +1915,15 @@ static int __mdss_fb_perform_commit(struct msm_fb_data_type *mfd)
 	return ret;
 }
 
+extern struct mdss_dsi_pwrctrl pwrctrl_pdata;
+
 static int __mdss_fb_display_thread(void *data)
 {
 	struct msm_fb_data_type *mfd = data;
 	int ret;
 	struct sched_param param;
+	struct mdss_panel_data *pdata = dev_get_platdata(&mfd->pdev->dev);
+	static int frame_count = 0;
 
 	param.sched_priority = 16;
 	ret = sched_setscheduler(current, SCHED_FIFO, &param);
@@ -1933,9 +1939,22 @@ static int __mdss_fb_display_thread(void *data)
 		if (kthread_should_stop())
 			break;
 
-		ret = __mdss_fb_perform_commit(mfd);
-		atomic_dec(&mfd->commits_pending);
-		wake_up_all(&mfd->idle_wait_q);
+		if (mfd->panel_info->skip_frame) {
+			if (!frame_count) {
+				if (pwrctrl_pdata.bkl_config)
+					pwrctrl_pdata.bkl_config(pdata, 0);
+				else
+					pdata->set_backlight(pdata, 0);
+			}
+			frame_count++;
+			if (frame_count > 2)
+				mfd->panel_info->skip_frame = 0;
+		} else {
+			ret = __mdss_fb_perform_commit(mfd);
+			atomic_dec(&mfd->commits_pending);
+			wake_up_all(&mfd->idle_wait_q);
+		}
+
 	}
 
 	atomic_set(&mfd->commits_pending, 0);

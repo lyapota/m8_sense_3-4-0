@@ -3042,6 +3042,13 @@ config MSM_UARTDM_Core_v14
 	help
 		Select if BLSP based UART Core v.14 or higher is present.
 
+config MSM_COMMON_LOG
+	bool "Use to export symbols for parsing memory dump"
+	help
+	 Use this to export symbols to a memory dump table. This table
+	 can be used by post analysis tools to extract information from
+	 memory when device crashes.
+
 config MSM_BOOT_STATS
 	bool "Use MSM boot stats reporting"
 	help
@@ -3138,12 +3145,6 @@ config MACH_M8_DUG_DTB
         bool "MSM8974 M8_DUG"
         help
           Support for HTC MSM8974 M8_DUG
-
-config PROJECT_NAME
-        string "Project Name"
-        default ""
-        help
-          Support for Project Name
 
 endif
 

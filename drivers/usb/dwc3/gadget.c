@@ -1560,6 +1560,9 @@ static int dwc3_gadget_pullup(struct usb_gadget *g, int is_on)
 	is_on = !!is_on;
 	printk(KERN_INFO "[USB] %s %d\n",__func__,is_on);
 
+	
+	g->ats_reset_irq_count	= 0;
+
 	if (is_on)
 		enable_irq(g_irq);
 	else
@@ -1605,6 +1608,9 @@ static int dwc3_gadget_vbus_session(struct usb_gadget *_gadget, int is_active)
 
 	
 	dwc->vbus_active = is_active;
+
+	
+	_gadget->ats_reset_irq_count	= 0;
 
 	if (dwc->gadget_driver && dwc->softconnect) {
 		if (dwc->vbus_active) {
@@ -1944,6 +1950,9 @@ static int dwc3_cleanup_done_reqs(struct dwc3 *dwc, struct dwc3_ep *dep,
 		pr_info("endpoint.desc is null\n");
 		return 1;
 	}
+
+	dwc->gadget.xfer_isr_count++;
+
 	if (usb_endpoint_xfer_isoc(dep->endpoint.desc) &&
 			list_empty(&dep->req_queued)) {
 		if (list_empty(&dep->request_list))
@@ -2102,6 +2111,7 @@ static void dwc3_disconnect_gadget(struct dwc3 *dwc,int mute)
 		}
 		spin_lock(&dwc->lock);
 	}
+	dwc->gadget.xfer_isr_count = 0;
 }
 
 static void dwc3_stop_active_transfer(struct dwc3 *dwc, u32 epnum)
@@ -2469,8 +2479,17 @@ static void dwc3_gadget_interrupt(struct dwc3 *dwc,
 		printk(KERN_INFO "[USB] gadget irq disconnect\n");
 		break;
 	case DWC3_DEVICE_EVENT_RESET:
+		if (dwc->gadget.ats_reset_irq_count == 50) {
+			dwc->gadget.ats_reset_irq_count++;
+				if (dwc->gadget_driver->broadcast_abnormal_usb_reset) {
+						printk(KERN_INFO "[USB] gadget irq :abnormal the amount of reset irq!\n");
+						dwc->gadget_driver->broadcast_abnormal_usb_reset();
+				}
+		} else if (dwc->gadget.ats_reset_irq_count < 50)
+			dwc->gadget.ats_reset_irq_count++;
+
 		dwc3_gadget_reset_interrupt(dwc);
-		printk(KERN_INFO "[USB] gadget irq reset\n");
+		printk(KERN_INFO "[USB] gadget irq reset,count %d\n",dwc->gadget.ats_reset_irq_count);
 		break;
 	case DWC3_DEVICE_EVENT_CONNECT_DONE:
 		dwc3_gadget_conndone_interrupt(dwc);

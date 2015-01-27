@@ -1872,7 +1872,8 @@ static void batt_level_adjust(unsigned long time_since_last_update_ms)
 		if (is_voltage_critical_low(htc_batt_info.rep.batt_vol)) {
 			critical_low_enter = 1;
 			
-			if (htc_batt_info.decreased_batt_level_check)
+			if (htc_batt_info.decreased_batt_level_check &&
+					htc_batt_info.rep.batt_temp > 0)
 				batt_check_critical_low_level(&dec_level,
 					htc_batt_info.rep.batt_current);
 			else
@@ -2245,9 +2246,9 @@ static void batt_worker(struct work_struct *work)
 	batt_level_adjust(time_since_last_update_ms);
 
 	
-	if (critical_shutdown ||
+	if ((htc_batt_info.rep.level != 0) && (critical_shutdown ||
 		(htc_batt_info.force_shutdown_batt_vol &&
-		htc_batt_info.rep.batt_vol < htc_batt_info.force_shutdown_batt_vol)) {
+		htc_batt_info.rep.batt_vol < htc_batt_info.force_shutdown_batt_vol))) {
 		BATT_LOG("critical shutdown (set level=0 to force shutdown)");
 		htc_batt_info.rep.level = 0;
 		critical_shutdown = 0;

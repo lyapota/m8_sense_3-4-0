@@ -29,6 +29,7 @@ obj-$(CONFIG_OV4688) += ov4688.o
 obj-$(CONFIG_VD6869) += vd6869.o
 obj-$(CONFIG_AR1820) += ar1820.o
 obj-$(CONFIG_IMX214) += imx214.o
+obj-$(CONFIG_OV13850_1140M) += ov13850_1140m.o
 obj-$(CONFIG_AR0260) += ar0260.o
 obj-$(CONFIG_IMX214_800M_FOV77) += imx214_800m_fov77.o
 obj-$(CONFIG_IMX214_800M_FOV87) += imx214_800m_fov87.o

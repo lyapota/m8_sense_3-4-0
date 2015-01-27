@@ -75,8 +75,6 @@
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
-#include <mach/devices_cmdline.h>
-
 #ifdef CONFIG_X86_LOCAL_APIC
 #include <asm/smp.h>
 #endif
@@ -447,12 +445,7 @@ asmlinkage void __init start_kernel(void)
 	tick_init();
 	boot_cpu_init();
 	page_address_init();
-
-	if(board_rom_type())
-		printk(KERN_NOTICE "%s", linux_banner_stockui);
-	else
-		printk(KERN_NOTICE "%s", linux_banner);
-
+	printk(KERN_NOTICE "%s", linux_banner);
 	setup_arch(&command_line);
 	boot_init_stack_canary();
 	mm_init_owner(&init_mm, &init_task);

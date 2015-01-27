@@ -94,6 +94,7 @@ struct mmc_ext_csd {
 	u8			raw_erased_mem_count;	
 	u8			raw_ext_csd_structure;	
 	u8			raw_card_type;		
+	u8			raw_drive_strength;	
 	u8			out_of_int_time;	
 	u8			raw_s_a_timeout;		
 	u8			raw_hc_erase_gap_size;	
@@ -340,6 +341,7 @@ struct mmc_card {
 #define MMC_QUIRK_BROKEN_DATA_TIMEOUT	(1<<12)
 
 #define MMC_QUIRK_CACHE_DISABLE (1 << 14)       
+#define MMC_QUIRK_URGENT_REQUEST_DISABLE (1 << 31)	
 
 	unsigned int		erase_size;	
  	unsigned int		erase_shift;	

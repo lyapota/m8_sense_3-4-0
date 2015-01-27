@@ -840,9 +840,7 @@ static struct sk_buff *ncm_wrap_ntb(struct gether *port,
 		return NULL;
 	}
 
-	skb2 = skb_copy_expand(skb, ncb_len,
-			       max_size - skb->len - ncb_len - crc_len,
-			       GFP_ATOMIC);
+	skb2 = skb_copy_expand(skb, ncb_len, crc_len, GFP_ATOMIC);
 	dev_kfree_skb_any(skb);
 	if (!skb2)
 		return NULL;

@@ -148,7 +148,9 @@ struct synaptics_ts_data {
 	uint32_t raw_ref;
 	uint64_t timestamp;
 	uint16_t *filter_level;
+#ifdef CONFIG_MOTION_FILTER
 	uint8_t *reduce_report_level;
+#endif
 	unsigned long tap_timeout[10];
 	int16_t *report_data;
 	int32_t *report_data_32;
@@ -227,6 +229,14 @@ struct synaptics_ts_data {
 	uint16_t hall_block_touch_time;
 	uint8_t hall_block_touch_event;
 	bool suspended;
+	int prev_NS;
+	int prev_Freq;
+#if defined(CONFIG_SECURE_TOUCH)
+    atomic_t st_enabled;
+    atomic_t st_pending_irqs;
+    struct completion st_powerdown;
+    struct completion st_irq_processed;
+#endif
 };
 
 #if defined(CONFIG_FB)
@@ -1278,6 +1288,12 @@ static int synaptics_input_register(struct synaptics_ts_data *ts)
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION,
 		0, ((1 << 31) | (ts->layout[1] << 16) | ts->layout[3]), 0, 0);
 
+#if defined(CONFIG_SECURE_TOUCH)
+    ts->input_dev->id.bustype = BUS_I2C;
+    ts->input_dev->dev.parent = &ts->client->dev;
+    input_set_drvdata(ts->input_dev, ts);
+#endif
+
 	return input_register_device(ts->input_dev);
 }
 
@@ -2090,6 +2106,114 @@ static DEVICE_ATTR(sr_en, (S_IWUSR|S_IRUGO), syn_get_en_sr, syn_set_en_sr);
 
 static struct kobject *android_touch_kobj;
 
+#if defined(CONFIG_SECURE_TOUCH)
+static void syn_secure_touch_notify(struct synaptics_ts_data *data)
+{
+	sysfs_notify(android_touch_kobj, NULL, "secure_touch");
+}
+
+static irqreturn_t syn_filter_interrupt(struct synaptics_ts_data *data)
+{
+	if (atomic_read(&data->st_enabled)) {
+		if (atomic_cmpxchg(&data->st_pending_irqs, 0, 1) == 0)
+		{
+			syn_secure_touch_notify(data);
+			wait_for_completion_interruptible(&data->st_irq_processed);
+		}
+		return IRQ_HANDLED;
+	}
+	return IRQ_NONE;
+}
+
+static ssize_t syn_secure_touch_enable_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct synaptics_ts_data *data = gl_ts;
+
+	return scnprintf(buf, PAGE_SIZE, "%d", atomic_read(&data->st_enabled));
+}
+static ssize_t syn_secure_touch_enable_store(struct device *dev,
+				    struct device_attribute *attr,
+				    const char *buf, size_t count)
+{
+	struct synaptics_ts_data *data = gl_ts;
+	unsigned long value;
+	int err = 0;
+
+	if (count > 2)
+		return -EINVAL;
+
+	err = kstrtoul(buf, 10, &value);
+	if (err != 0)
+		return err;
+
+	err = count;
+
+	switch (value) {
+	case 0:
+		if (atomic_read(&data->st_enabled) == 0)
+			break;
+
+		pm_runtime_put(data->client->adapter->dev.parent);
+		atomic_set(&data->st_enabled, 0);
+		syn_secure_touch_notify(data);
+		complete(&data->st_irq_processed);
+		synaptics_irq_thread(data->client->irq, data);
+		complete(&data->st_powerdown);
+		break;
+	case 1:
+		if (atomic_read(&data->st_enabled)) {
+			err = -EBUSY;
+			break;
+		}
+
+		if (pm_runtime_get(data->client->adapter->dev.parent) < 0) {
+			dev_err(&data->client->dev, "pm_runtime_get failed\n");
+			err = -EIO;
+			break;
+		}
+		INIT_COMPLETION(data->st_powerdown);
+		INIT_COMPLETION(data->st_irq_processed);
+		atomic_set(&data->st_enabled, 1);
+		synchronize_irq(data->client->irq);
+		atomic_set(&data->st_pending_irqs, 0);
+		break;
+	default:
+		dev_err(&data->client->dev, "unsupported value: %lu\n", value);
+		err = -EINVAL;
+		break;
+	}
+
+	return err;
+}
+
+static ssize_t syn_secure_touch_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct synaptics_ts_data *data = gl_ts;
+	int val = 0;
+
+	if (atomic_read(&data->st_enabled) == 0)
+		return -EBADF;
+
+	if (atomic_cmpxchg(&data->st_pending_irqs, -1, 0) == -1)
+		return -EINVAL;
+
+	if (atomic_cmpxchg(&data->st_pending_irqs, 1, 0) == 1)
+		val = 1;
+	else
+		complete(&data->st_irq_processed);
+
+	return scnprintf(buf, PAGE_SIZE, "%u", val);
+}
+
+static DEVICE_ATTR(secure_touch_enable, S_IRUGO | S_IWUSR | S_IWGRP ,
+			 syn_secure_touch_enable_show,
+			 syn_secure_touch_enable_store);
+static DEVICE_ATTR(secure_touch, S_IRUGO, syn_secure_touch_show, NULL);
+#endif
+
+
 static int synaptics_touch_sysfs_init(void)
 {
 	int ret;
@@ -2107,6 +2231,10 @@ static int synaptics_touch_sysfs_init(void)
 	if (sysfs_create_file(android_touch_kobj, &dev_attr_vendor.attr) ||
 		sysfs_create_file(android_touch_kobj, &dev_attr_gpio.attr) ||
 		sysfs_create_file(android_touch_kobj, &dev_attr_debug_level.attr) ||
+#if defined(CONFIG_SECURE_TOUCH)
+        sysfs_create_file(android_touch_kobj, &dev_attr_secure_touch_enable.attr) ||
+        sysfs_create_file(android_touch_kobj, &dev_attr_secure_touch.attr) ||
+#endif
 		sysfs_create_file(android_touch_kobj, &dev_attr_register.attr) ||
 		sysfs_create_file(android_touch_kobj, &dev_attr_unlock.attr) ||
 		sysfs_create_file(android_touch_kobj, &dev_attr_config.attr) ||
@@ -2169,6 +2297,10 @@ static void synaptics_touch_sysfs_remove(void)
 	sysfs_remove_file(android_touch_kobj, &dev_attr_vendor.attr);
 	sysfs_remove_file(android_touch_kobj, &dev_attr_gpio.attr);
 	sysfs_remove_file(android_touch_kobj, &dev_attr_debug_level.attr);
+#if defined(CONFIG_SECURE_TOUCH)
+    sysfs_remove_file(android_touch_kobj, &dev_attr_secure_touch_enable.attr);
+    sysfs_remove_file(android_touch_kobj, &dev_attr_secure_touch.attr);
+#endif
 	if (get_address_base(gl_ts, 0x54, FUNCTION))
 		sysfs_remove_file(android_touch_kobj, &dev_attr_diag.attr);
 	sysfs_remove_file(android_touch_kobj, &dev_attr_register.attr);
@@ -2388,6 +2520,15 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 		temp_im = (noise_index[1] <<8) | noise_index[0];
 		temp_cidim = (noise_index[6] <<8) | noise_index[5];
 	}
+
+	if((noise_index[9] != ts->prev_Freq) || (noise_index[4] != ts->prev_NS))
+	{
+		pr_info("[TP][NS]Finger Pressed:%d, IM:%d, CIDIM:%d, Freq:%d, NS:%d\n",
+		ts->finger_pressed, temp_im, temp_cidim, noise_index[9], noise_index[4]);
+	}
+	ts->prev_NS = noise_index[4];
+	ts->prev_Freq = noise_index[9];
+
 	if (ret < 0) {
 		i2c_syn_error_handler(ts, ts->i2c_err_handler_en, "r:1", __func__);
 	} else {
@@ -2524,8 +2665,11 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 				ts->ambiguous_state = 0;
 			ts->grip_b_suppression = 0;
 #endif
+
+#ifdef CONFIG_MOTION_FILTER
 			if (ts->reduce_report_level[0])
 				ts->tap_suppression = 0;
+#endif
 			if (ts->debug_log_level & BIT(1))
 				pr_info("[TP] Finger leave\n");
 		}
@@ -2600,6 +2744,7 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 					} else
 #endif
 
+#ifdef CONFIG_MOTION_FILTER
 					if (ts->htc_event == SYN_AND_REPORT_TYPE_B && ts->reduce_report_level[0]) {
 						if (ts->tap_suppression & BIT(i) && finger_pressed & BIT(i)) {
 							int dx, dy = 0;
@@ -2618,6 +2763,7 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 							}
 						}
 					}
+#endif
 
 					if ((finger_pressed & BIT(i)) == BIT(i)) {
 					if (ts->hall_block_touch_event == 0) {
@@ -2725,6 +2871,7 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 							}
 						}
 
+#ifdef CONFIG_MOTION_FILTER
 						if (ts->htc_event == SYN_AND_REPORT_TYPE_B && ts->reduce_report_level[TAP_DX_OUTER]) {
 							if (finger_press_changed & BIT(i)) {
 								ts->tap_suppression &= ~BIT(i);
@@ -2735,6 +2882,7 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 									ts->tap_timeout[i] = jiffies + msecs_to_jiffies(ts->reduce_report_level[TAP_TIMEOUT]);
 							}
 						}
+#endif
 
 						if (ts->debug_log_level & BIT(1))
 							pr_info("[TP] Finger %d=> X:%d, Y:%d W:%d, Z:%d\n",
@@ -2779,6 +2927,7 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 #endif
 		}
 	}
+
 	input_sync(ts->input_dev);
 
 }
@@ -2953,6 +3102,11 @@ static irqreturn_t synaptics_irq_thread(int irq, void *ptr)
 	int ret;
 	uint8_t buf = 0;
 	struct timespec timeStart, timeEnd, timeDelta;
+
+#if defined(CONFIG_SECURE_TOUCH)
+    if(IRQ_HANDLED == syn_filter_interrupt(ts))
+        return IRQ_HANDLED;
+#endif
 
 	if (ts->debug_log_level & BIT(2)) {
 			getnstimeofday(&timeStart);
@@ -3605,6 +3759,11 @@ static int synaptics_parse_config(struct synaptics_ts_data *ts, struct synaptics
 		if (of_property_read_u32(pp, "sensor_id", &data) == 0)
 			cfg_table[i].sensor_id = (data | SENSOR_ID_CHECKING_EN);
 
+		if (of_property_read_bool(pp, "mfgconfig")) {
+			cfg_table[i].mfgconfig = 1;
+		} else
+			cfg_table[i].mfgconfig = 0;
+
 		if (of_property_read_u32(pp, "pr_number", &data) == 0)
 			cfg_table[i].pr_number = data;
 
@@ -3721,6 +3880,15 @@ static int synaptics_parse_config(struct synaptics_ts_data *ts, struct synaptics
 	while (cfg_table[i].pr_number > ts->packrat_number) {
 		i++;
 	}
+
+	if (board_build_flag() != BUILD_MODE_MFG) {
+		while (cfg_table[i].mfgconfig == 1) {
+			if (i < cnt)
+				i++;
+		}
+		pr_info("[TP] not mfg config\n");
+	}
+
 	while (cfg_table[i].sensor_id > 0 && (cfg_table[i].sensor_id != (SENSOR_ID_CHECKING_EN | ts->tw_vendor))) {
 		pr_info("[TP] id:%#x!=%#x, (i++)",cfg_table[i].sensor_id, (SENSOR_ID_CHECKING_EN | ts->tw_vendor));
 		i++;
@@ -4096,7 +4264,9 @@ static int __devinit synaptics_ts_probe(
 		ts->flags                          = pdata->flags;
 		ts->htc_event                      = pdata->report_type;
 		ts->filter_level                   = pdata->filter_level;
+#ifdef CONFIG_MOTION_FILTER
 		ts->reduce_report_level            = pdata->reduce_report_level;
+#endif
 		ts->gpio_irq                       = pdata->gpio_irq;
 		ts->gpio_reset                     = pdata->gpio_reset;
 		ts->gpio_i2c                       = pdata->gpio_i2c;
@@ -4120,6 +4290,8 @@ static int __devinit synaptics_ts_probe(
 		ts->suspended                      = false;
 		ts->hall_block_touch_event         = 0;
 		ts->hall_block_touch_time          = pdata->hall_block_touch_time;
+		ts->prev_NS                        = -1;
+		ts->prev_Freq                      = -1;
 
 		if (pdata->virtual_key) {
 			uint8_t pos = 0;
@@ -4354,6 +4526,10 @@ static int __devinit synaptics_ts_probe(
 #ifdef CONFIG_OF
 	kfree(pdata);
 #endif
+#if defined(CONFIG_SECURE_TOUCH)
+    init_completion(&ts->st_powerdown);
+    init_completion(&ts->st_irq_processed);
+#endif
 	return 0;
 
 #ifdef SYN_CABLE_CONTROL
@@ -4447,13 +4623,15 @@ static int synaptics_ts_suspend(struct device *dev)
 
 	if(ts->suspended)
 	{
-		pr_info("[TP] %s: Already suspended. Skipped.\n", __func__);
+		pr_info("[TP] %s: Already suspended. Skipped. FW:%d;%d;%x;%x\n",
+		__func__, ts->package_id, ts->packrat_number, syn_panel_version, ts->config_version);
 		return 0;
 	}
 	else
 	{
 		ts->suspended = true;
-		pr_info("[TP] %s: enter\n", __func__);
+		pr_info("[TP] %s: enter. FW:%d;%d;%x;%x\n",
+		__func__, ts->package_id, ts->packrat_number, syn_panel_version, ts->config_version);
 	}
 
 	if (ts->use_irq) {
@@ -4600,7 +4778,8 @@ static int synaptics_ts_resume(struct device *dev)
 {
 	int ret, i;
 	struct synaptics_ts_data *ts = dev_get_drvdata(dev);
-	pr_info("[TP] %s: enter\n", __func__);
+	pr_info("[TP] %s: enter. FW:%d;%d;%x;%x\n",
+	__func__, ts->package_id, ts->packrat_number, syn_panel_version, ts->config_version);
 
 #if defined(CONFIG_SYNC_TOUCH_STATUS)
 	switch_sensor_hub(ts, 0);

@@ -512,6 +512,10 @@ static int sdhci_pre_dma_transfer(struct sdhci_host *host,
 		data->host_cookie = 0;
 	}
 
+	if (data->sg->page_link == 0) {
+		pr_info("%s: %s-- invalid page_link\n", mmc_hostname(host->mmc), __func__);
+		return -EINVAL;
+	}
 	
 	if (next ||
 	    (!next && data->host_cookie != host->next_data.cookie)) {

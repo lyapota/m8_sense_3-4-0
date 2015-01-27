@@ -1238,7 +1238,8 @@ static void psensor_set_kvalue(struct cm36686_info *lpi)
 		lpi->inte_ps_canc = (uint16_t) (lpi->ps_kparam2 & 0xFFFF);
 		lpi->mfg_thd = (uint16_t) ((lpi->ps_kparam2 >> 16) & 0xFFFF);
 
-		lpi->ps_thd_set = lpi->mfg_thd;
+		if (lpi->mfg_thd)
+			lpi->ps_thd_set = lpi->mfg_thd;
 
 		D("[PS][cm36686] %s: PS calibrated inte_ps_canc = 0x%02X, "
 				"mfg_thd = 0x%02X, ((ps_kparam2 >> 16) & 0xFF) = 0x%X\n", __func__,
@@ -1473,7 +1474,8 @@ static ssize_t ps_kadc_store(struct device *dev,
 	ps_canc_set = lpi->inte_ps_canc = (param2 & 0xFFFF);
 	mfg_thd = lpi->mfg_thd = ((param2 >> 16) & 0xFFFF);
 	psensor_intelligent_cancel_cmd(lpi);
-	lpi->ps_thd_set = mfg_thd;
+	if (mfg_thd)
+		lpi->ps_thd_set = mfg_thd;
 
 	if (lpi->ps_enable) {
 		ps_conf[0] = lpi->ps_conf1_val;

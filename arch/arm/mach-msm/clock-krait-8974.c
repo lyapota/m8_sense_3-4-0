@@ -930,7 +930,7 @@ static int clock_krait_8974_driver_probe(struct platform_device *pdev)
 	}
 
 	get_krait_bin_format_b(pdev, &speed, &pvs, &pvs_ver);
-	snprintf(table_name, ARRAY_SIZE(table_name) - 1,
+	snprintf(table_name, sizeof(table_name) - 1,
 			"qcom,speed%d-pvs%d-bin-v%d", speed, pvs, pvs_ver);
 
 #ifdef CONFIG_HTC_POWER_DEBUG
