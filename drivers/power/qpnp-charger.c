@@ -45,7 +45,8 @@
 #endif
 #ifdef CONFIG_FORCE_FAST_CHARGE 
 #include <linux/fastchg.h> 
-#endif #ifdef pr_debug
+#endif
+#ifdef pr_debug
 #undef pr_debug
 #endif
 #define pr_debug(fmt, args...) do { \
