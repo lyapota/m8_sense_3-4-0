@@ -39,7 +39,8 @@ DEFINE_MUTEX(of_aliases_mutex);
  */
 DEFINE_RWLOCK(devtree_lock);
 
-// lyapota - Sprint have two luns
+#ifdef CONFIG_EXT_CMD_LINE
+// Sprint have two luns
 unsigned int is_m8 = 1;
 unsigned int is_m8wl = 0;
 unsigned int is_m8whl = 0;
@@ -59,7 +60,7 @@ static int __init hook_m8_model_setup(char *model)
 	return 0;
 }
 __setup("m8_model=", hook_m8_model_setup);
-// --
+#endif
 
 int of_n_addr_cells(struct device_node *np)
 {

@@ -39,20 +39,20 @@
 #include <mach/perflock.h>
 #endif
 
-//elementalx
+#ifdef CONFIG_EDP_LIMIT
+unsigned int edp_limit = 0;
+
+module_param(edp_limit, int, S_IRUGO | S_IWUSR);
+#endif
+
+#ifdef CONFIG_EXT_CMD_LINE
 unsigned long arg_cpu_oc = 0;
 static int arg_vdd_uv = 0;
 int pvs_number = 0;
-//--
-
-//lyapota
-unsigned int edp_limit = 0;
 
 module_param_named(cpu_oc_current, arg_cpu_oc, long, S_IRUGO | S_IWUSR);
 module_param_named(vdd_uv_current, arg_vdd_uv, int, S_IRUGO);
 module_param(pvs_number, int, S_IRUGO);
-module_param(edp_limit, int, S_IRUGO | S_IWUSR);
-//--lyapota
 
 static int __init cpufreq_read_cpu_oc(char *cpu_oc)
 {
@@ -89,6 +89,8 @@ static int __init cpufreq_read_vdd_uv(char *vdd_uv)
 	return 0;
 }
 __setup("vdd_uv=", cpufreq_read_vdd_uv);
+
+#endif
 
 DEFINE_FIXED_DIV_CLK(hfpll_src_clk, 1, NULL);
 DEFINE_FIXED_DIV_CLK(acpu_aux_clk, 2, NULL);
@@ -523,12 +525,12 @@ static void get_krait_bin_format_b(struct platform_device *pdev,
 
 	
 	if (pte_efuse & BIT(3)) {
-		//elementalx
+#ifdef CONFIG_EXT_CMD_LINE
 		if (arg_cpu_oc == 0 && *speed == 1)
 			arg_cpu_oc = 2265600;
 		else if (arg_cpu_oc == 0 && *speed == 3)
 			arg_cpu_oc = 2457600;
-		
+#endif		
 		dev_info(&pdev->dev, "Speed bin: %d\n", *speed);
 	} else {
 		dev_warn(&pdev->dev, "Speed bin not set. Defaulting to 0!\n");
@@ -538,9 +540,9 @@ static void get_krait_bin_format_b(struct platform_device *pdev,
 	
 	pte_efuse = readl_relaxed(base + 0x4) & BIT(21);
 	if (pte_efuse) {
-		//elementalx
+#ifdef CONFIG_EXT_CMD_LINE
 		pvs_number = *pvs;
-
+#endif		
 		dev_info(&pdev->dev, "PVS bin: %d\n", *pvs);
 	} else {
 		dev_warn(&pdev->dev, "PVS bin not set. Defaulting to 0!\n");
@@ -704,10 +706,11 @@ static void krait_update_uv(int *uv, int num, int boost_uv)
 	if (enable_boost) {
 		for (i = 0; i < num; i++)
 			uv[i] += boost_uv;
+#ifdef CONFIG_EXT_CMD_LINE
         } else {
 		for (i = 0; i < num; i++)
 			uv[i] = uv[i] + (arg_vdd_uv * 1000);
-
+#endif
 	}
 }
 
@@ -782,8 +785,9 @@ ssize_t store_UV_mV_table(struct cpufreq_policy *policy,
 
 	return ret;
 }
+#endif
 
-//lyapota
+#ifdef CONFIG_EXT_CMD_LINE
 static int quick_vdd_uv = 0;
 
 static int quick_vdd_uv_param_set(const char *val, const struct kernel_param *kp)
@@ -831,8 +835,6 @@ static struct kernel_param_ops quick_vdd_uv_ops = {
 };
 
 module_param_cb(vdd_uv_quick, &quick_vdd_uv_ops, &quick_vdd_uv, S_IRUGO | S_IWUSR);
-//--
-
 #endif
 
 static int clock_krait_8974_driver_probe(struct platform_device *pdev)

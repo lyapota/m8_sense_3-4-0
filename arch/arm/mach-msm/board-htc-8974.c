@@ -472,7 +472,7 @@ static void htc_8974_add_usb_devices(void)
 	mid = board_mid();
 
 	if (board_mfg_mode() == 0) {
-#ifdef CONFIG_MACH_DUMMY
+#ifdef CONFIG_MACH_M8_WHL
 		android_usb_pdata.nluns = 2;
 		android_usb_pdata.cdrom_lun = 0x2;
 #elif defined(CONFIG_MACH_DUMMY)
@@ -482,19 +482,26 @@ static void htc_8974_add_usb_devices(void)
 		android_usb_pdata.nluns = 2;
 		android_usb_pdata.cdrom_lun = 0x2;
 #else
+#ifdef CONFIG_EXT_CMD_LINE
 		if (is_m8whl) {
 			android_usb_pdata.nluns = 2;
 			android_usb_pdata.cdrom_lun = 0x2;
 		} else {
+#endif
 			android_usb_pdata.nluns = 1;
 			android_usb_pdata.cdrom_lun = 0x1;
+#ifdef CONFIG_EXT_CMD_LINE
 		}
+#endif
 #endif
 
 	}
 #ifdef CONFIG_MACH_M8
+#ifdef CONFIG_EXT_CMD_LINE
 	if (is_m8)
+#endif
 		android_usb_pdata.product_id	= 0x061A;
+#ifdef CONFIG_EXT_CMD_LINE
 	else if (is_m8wl) {
 		android_usb_pdata.product_id	= 0x0616;
 		android_usb_pdata.vzw_unmount_cdrom = 1;
@@ -504,12 +511,13 @@ static void htc_8974_add_usb_devices(void)
 		android_usb_pdata.product_id	= 0x061A;
 	else if (is_m8dug)
 		android_usb_pdata.product_id	= 0x063B;
+#endif
 #elif defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x0616;
 	android_usb_pdata.vzw_unmount_cdrom = 1;
 	android_usb_pdata.nluns = 2;
         android_usb_pdata.cdrom_lun = 0x3;
-#elif defined(CONFIG_MACH_DUMMY)
+#elif defined(CONFIG_MACH_M8_WHL)
 	android_usb_pdata.product_id	= 0x061A;
 #elif defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x0623;
@@ -517,7 +525,7 @@ static void htc_8974_add_usb_devices(void)
 	android_usb_pdata.product_id	= 0x063B;
 #elif defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x0643;
-#elif defined(CONFIG_MACH_DUMMY)
+#elif defined(CONFIG_MACH_M8_UHL)
 	android_usb_pdata.product_id	= 0x063A;
 #elif defined(CONFIG_MACH_MEC_TL)
 	android_usb_pdata.product_id	= 0x0635;
@@ -527,7 +535,7 @@ static void htc_8974_add_usb_devices(void)
 	android_usb_pdata.product_id	= 0x0636;
 #elif defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x0634;
-#elif defined(CONFIG_MACH_DUMMY)
+#elif defined(CONFIG_MACH_B2_UHL)
 	android_usb_pdata.product_id	= 0x0642;
 #elif defined(CONFIG_MACH_DUMMY)
 	android_usb_pdata.product_id	= 0x0642;

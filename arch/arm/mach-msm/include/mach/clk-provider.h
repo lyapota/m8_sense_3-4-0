@@ -44,9 +44,10 @@
 
 //elementalx
 extern unsigned long arg_cpu_oc;
-//lyapota
+
+#ifdef CONFIG_EDP_LIMIT
 extern unsigned int edp_limit;
-//--
+#endif
 
 struct clk_register_data {
 	char *name;
