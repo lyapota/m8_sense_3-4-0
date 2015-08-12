@@ -27,8 +27,14 @@
 #define BUCK_VREF_0P494V 0x3F
 #define BUCK_VREF_1P8V 0xE6
 
+#if defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY)
+#define BUCK_SETTLE_TIME_US 1000
+#define NCP_SETTLE_TIME_US 1000
+#else
 #define BUCK_SETTLE_TIME_US 50
 #define NCP_SETTLE_TIME_US 50
+#endif
+
 
 #define MAX_IMPED_PARAMS 13
 
@@ -441,6 +447,9 @@ wcd9xxx_enable_buck(struct snd_soc_codec *codec,
 	    (!enable && --clsh_d->buck_users == 0))
 		snd_soc_update_bits(codec, WCD9XXX_A_BUCK_MODE_1,
 				    0x80, enable ? 0x80 : 0x00);
+#if defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_DUMMY)
+	usleep_range(BUCK_SETTLE_TIME_US, BUCK_SETTLE_TIME_US);
+#endif
 	dev_dbg(codec->dev, "%s: buck_users %d, enable %d", __func__,
 		clsh_d->buck_users, enable);
 }
@@ -600,8 +609,13 @@ static int get_impedance_index(u32 imped)
 				__func__);
 		goto ret;
 	}
-	for (i = 0; i < ARRAY_SIZE(imped_index); i++) {
-		if (i == (ARRAY_SIZE(imped_index)-1)) break;
+	if (imped >= imped_index[ARRAY_SIZE(imped_index) - 1].imped_val) {
+		pr_debug("%s, detected impedance is greater than 32164 Ohm\n",
+				__func__);
+		i = ARRAY_SIZE(imped_index) - 1;
+		goto ret;
+	}
+	for (i = 0; i < ARRAY_SIZE(imped_index) - 1; i++) {
 		if (imped >= imped_index[i].imped_val &&
 			imped < imped_index[i + 1].imped_val)
 			break;
@@ -618,7 +632,7 @@ void wcd9xxx_clsh_imped_config(struct snd_soc_codec *codec,
 	int i  = 0;
 	int index = 0;
 	index = get_impedance_index(imped);
-	if (index > ARRAY_SIZE(imped_index)) {
+	if (index >= ARRAY_SIZE(imped_index)) {
 		pr_err("%s, invalid imped = %d\n", __func__, imped);
 		return;
 	}
